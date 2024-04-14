@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 info_df = pd.read_excel('data/inventory_data_semi_raw.xlsx', sheet_name='Inf.')
 accounting_info_1_df = pd.read_excel('data/inventory_data_semi_raw.xlsx', sheet_name='info_comptable_1')
@@ -59,5 +58,5 @@ with pd.ExcelWriter('data/inventory_data_clean.xlsx') as writer:
 	sales_2023_df.to_excel(writer, sheet_name='vendes_2023', index=False)
 	sales_2022_df.to_excel(writer, sheet_name='vendes_2022', index=False)
 	catalog_prices_2023_df.to_excel(writer, sheet_name='preus_venda_cataleg_2023', index=False)
-	last_exit_entry_df.to_excel(writer, sheet_name='darrera_entrada-sortida', index=False)
+	last_exit_entry_df.to_excel(writer, sheet_name='darrera_entrada_sortida', index=False)
 	stock_31_12_2023_df.to_excel(writer, sheet_name='stock_final_2023', index=False)
