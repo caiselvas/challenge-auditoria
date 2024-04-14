@@ -12,6 +12,7 @@ vendes_2022_df.rename(columns={'quantitat': 'quantitat_2022', 'vendes': 'vendes_
 vendes_2023_df.rename(columns={'quantitat': 'quantitat_2023', 'vendes': 'vendes_2023'}, inplace=True)
 preus_venda_cataleg_2023_df.rename(columns={'preu_unitat': 'preu_unitat_2023'}, inplace=True)
 stock_final_2023_df.rename(columns={'stock': 'stock_final_2023', 'valor_total': 'valor_total_2023', 'cost_unitat': 'cost_unitat_2023'}, inplace=True)
+darrera_entrada_sortida_df.rename(columns={'data_entrada': 'darrera_data_entrada', 'data_sortida': 'darrera_data_sortida'}, inplace=True)
 
 # Merge the datasets
 merged_df = pd.merge(vendes_2022_df, vendes_2023_df, on='material', how='outer')
