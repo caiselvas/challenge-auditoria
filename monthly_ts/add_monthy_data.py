@@ -29,16 +29,15 @@ def generate_monthly_sales(yearly_total, monthly_avg_sales, last_month, VARIABIL
     return monthly_sales
 
 def plot_monthly_sales(months, sales_2022, sales_2023, last_month_2022, last_month_2023):
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(months[:last_month_2022], sales_2022, label='2022 Sales')
-    # plt.plot(months[:last_month_2023], sales_2023, label='2023 Sales')
-    # plt.xlabel('Month')
-    # plt.ylabel('Sales')
-    # plt.title('Monthly Sales Comparison')
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
-    pass
+    plt.figure(figsize=(10, 6))
+    plt.plot(months[:last_month_2022], sales_2022, label='2022 Sales')
+    plt.plot(months[:last_month_2023], sales_2023, label='2023 Sales')
+    plt.xlabel('Month')
+    plt.ylabel('Sales')
+    plt.title('Monthly Sales Comparison')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 def main(sales22 = 1000, sales23 = 1200, last_month_2022=6, last_month_2023=6, VARIABILITY=0.1):
     # Yearly totals
@@ -98,7 +97,7 @@ if __name__ == "__main__":
             month23 = 12
         ventes22 = row["vendes_2022"] if not pd.isna(row["vendes_2022"]) else 0
         ventes23 = row["vendes_2023"] if not pd.isna(row["vendes_2023"]) else 0
-        values22, values23 = main(sales22 = ventes22, sales23 = ventes23 ,last_month_2022=month22, last_month_2023=month23, VARIABILITY=0.9)
+        values22, values23 = main(sales22 = ventes22, sales23 = ventes23 ,last_month_2022=month22, last_month_2023=month23, VARIABILITY=0)
         for month_idx, month in enumerate(months):
             row[f'{month}_2022'] = values22[month_idx] if month_idx < len(values22) else 0
             row[f'{month}_2023'] = values23[month_idx] if month_idx < len(values23) else 0
