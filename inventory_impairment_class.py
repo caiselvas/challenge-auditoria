@@ -25,6 +25,7 @@ class InventoryImpairment:
 		self.random_state = random_state
 
 	def get_monthly_data(self, data):
+		data = data.copy()
 		self.months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 		for month_idx, month in enumerate(self.months):
@@ -115,6 +116,7 @@ class InventoryImpairment:
 		return forecast
 	
 	def create_auto_arima_and_forecast(self, data):
+		data = data.copy()
 		ts = [f"{month}_{year}" for year in [self.first_year, self.second_year] for month in self.months]
 		data.fillna(0, inplace=True)
 
@@ -148,6 +150,7 @@ class InventoryImpairment:
 		return decrease_indicator	
 	
 	def create_auto_encoder(self, data, auto_arima_indicators):
+		data = data.copy()
 		# New variables
 		data['forecast_index'] = auto_arima_indicators
 		data['cost_value'] = data[f"{self.unitary_sale_price_variable_prefix}_{self.second_year}"] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
@@ -212,14 +215,15 @@ class InventoryImpairment:
 		reference = references[0]
 
 		distances = np.linalg.norm(embeddings - reference, axis=1)
+		
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
-		
 		distances = [1-d[0] for d in distances]
 
 		return pd.Series(distances)
 	
 	def calculate_impairment_index_formula(self, data):
+		data = data.copy()
 		# Calculate differences and ratios ensuring no division by zero
 		data['delta_units'] = (data[f'{self.number_of_units_sold_variable_prefix}_{self.second_year}'] - data[f'{self.number_of_units_sold_variable_prefix}_{self.first_year}']) / (data[f'{self.number_of_units_sold_variable_prefix}_{self.first_year}'] + 1)
 		data['delta_unitary_sell_price'] = data[self.variation_unitary_sale_price_firstyear_secondyear_variable] / (data[f'{self.unitary_sale_price_variable_prefix}_{self.first_year}'] + 0.01)
@@ -237,24 +241,27 @@ class InventoryImpairment:
 		# Ensure no NaN values
 		data['impairment_index'].fillna(0, inplace=True)
 
+		# Keep only positive values
+		data['impairment_index'] = data['impairment_index'].apply(lambda x: x if x > 0 else 0)
+
+		# Scale the values of the impairment index
+		scaler = MinMaxScaler()
+		impairment_index_scaled = scaler.fit_transform(data['impairment_index'].values.reshape(-1, 1))
+		# Replace the original column with the scaled values
+		data['impairment_index'] = impairment_index_scaled.flatten()  # Flatten to convert it back to a 1D array
+
+
 		return data['impairment_index']
 	
-	def indexs_interpretation(self, data, impairment_index, autoencoder_indexs, auto_arima_indexs):
-		impairment_index = [i if i > 0 else 0 for i in impairment_index]
-
-		scaler = MinMaxScaler()
-		impairment_index = scaler.fit_transform([[i] for i in impairment_index])
-		impairment_index = [i[0] for i in impairment_index]
-
+	def indexs_interpretation(self, data, impairment_index, auto_encoder_indexs, auto_arima_indexs):
+		data = data.copy()
+		print(f"INDEXS_INTERPRETATION CALLED WITH --> len auto_arima_indexs: {len(auto_arima_indexs)}, len auto_encoder_indexs: {len(auto_encoder_indexs)}, len impairment_index: {len(impairment_index)}, shape data: {data.shape}")
+		print("NaN values in auto_encoder indexs start: ", auto_encoder_indexs.isna().sum())
 		data['auto_arima_index'] = auto_arima_indexs
-		data['autoencoder_index'] = autoencoder_indexs
+		data['autoencoder_index'] = auto_encoder_indexs
+		print("NaN values in auto_encoder indexs assign: ", data['autoencoder_index'].isna().sum())
 		data['impairment_index'] = impairment_index
 		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['autoencoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
-
-		print("NaN values in merged indexs: ", data['merged_indexs'].isna().sum())
-		print("NaN values in auto_arima indexs: ", data['auto_arima_index'].isna().sum())
-		print("NaN values in autoencoder indexs: ", data['autoencoder_index'].isna().sum())
-		print("NaN values in impairment indexs: ", data['impairment_index'].isna().sum())
 
 		# Mode of the discretised values (by round 2)
 		rounded_merged_indexs = [round(v, 2) for v in data['merged_indexs']]
@@ -399,24 +406,31 @@ class InventoryImpairment:
 		self.monthly_weights = monthly_weights
 		self.id_variable = id_variable
 
+
 		# Get only the rows that are in the stock_ids
 		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)]
+		print(f"Original Data shape: {self.data.shape}")
+		print(f"Created Stock data shape: {self.stock_data.shape}")
 
 		print("Calculating monthly data...")
 		# Get the monthly data
 		self.data_monthly = self.get_monthly_data(data=self.stock_data)
+		print(f"Created Data monthly shape: {self.data_monthly.shape}")
 
 		print("Creating auto arima model...")
 		# Create auto arima model and forecast for each stock
 		self.auto_arima_indexs = self.create_auto_arima_and_forecast(data=self.data_monthly)
+		print(f"Created Auto arima indexs length: {len(self.auto_arima_indexs)}")
 
 		print("Creating auto encoder model...")
 		# Create auto encoder model
-		self.autoencoder_indexs = self.create_auto_encoder(data=self.data, auto_arima_indicators=self.auto_arima_indexs)
+		self.auto_encoder_indexs = self.create_auto_encoder(data=self.stock_data, auto_arima_indicators=self.auto_arima_indexs)
+		print(f"Created Auto encoder indexs length: {len(self.auto_encoder_indexs)}")
 
 		print("Calculating impairment index...")
 		# Calculate impairment index
-		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.data)
+		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.stock_data)
+		print(f"Created Impairment indexs length: {len(self.impairment_indexs)}")
 
 		self.fitted = True
 		print("Model fitted.")
@@ -446,7 +460,7 @@ class InventoryImpairment:
 		self.indexs_weights = indexs_weights
 
 		# Interpret the indexes
-		self.data_indexs_interpreted = self.indexs_interpretation(data=self.data, impairment_index=self.impairment_indexs, autoencoder_indexs=self.autoencoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
+		self.data_indexs_interpreted = self.indexs_interpretation(data=self.data, impairment_index=self.impairment_indexs, auto_encoder_indexs=self.auto_encoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
 		
 		self.predicted = True
 
@@ -467,7 +481,7 @@ class InventoryImpairment:
 		assert self.fitted and self.predicted, "Model must be fitted and predicted to be explained."
 
 		# Prepare data
-		data = self.data_indexs_interpreted
+		data = self.data_indexs_interpreted.copy()
 		
 		X = data[
 			[
