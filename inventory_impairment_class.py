@@ -259,6 +259,9 @@ class InventoryImpairment:
 
 		data.reset_index(inplace = True)
 
+		# Aquest és pq sinó hi ha 15 fair prices que no es poden calcular
+		data = data.fillna(0)
+
 		print(f"INDEXS_INTERPRETATION CALLED WITH --> len auto_arima_indexs: {auto_arima_indexs.shape}, len auto_encoder_indexs: {auto_encoder_indexs.shape}, len impairment_index: {impairment_index.shape}, shape data: {data.shape}")
 		print("NaN values in auto_encoder indexs start: ", auto_encoder_indexs.isna().sum())
 		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
@@ -278,7 +281,6 @@ class InventoryImpairment:
 		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - mode/self.tolerance)
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
-
 		return data
 
 	# CALLABLE METHODS
@@ -486,6 +488,8 @@ class InventoryImpairment:
 
 		# Prepare data
 		data = self.data_indexs_interpreted.copy()
+
+		print(data.isna().sum())
 		
 		X = data[
 			[
@@ -504,6 +508,14 @@ class InventoryImpairment:
 		]
 		
 		y = data['fair_price'] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
+
+		print(f"y has {y.isna().sum()} na's")
+
+		print(y)
+		# hi ha 1 na per la cara
+		y = y.fillna(0)
+
+		
 
 		# Scale the data
 		scaler = MinMaxScaler()
