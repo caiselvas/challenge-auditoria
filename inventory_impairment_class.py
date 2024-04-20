@@ -99,7 +99,7 @@ class InventoryImpairment:
 
 	def calculate_monthly_sales(self, total_year_sales: float, monthly_avg_sales: list[float], last_month: int):
 		# Calculate surplus/deficit
-		surplus_deficit = (total_year_sales - np.sum(monthly_avg_sales)) / last_month
+		surplus_deficit = (total_year_sales - np.sum(monthly_avg_sales)) / last_month if last_month != 0 else 0
 		monthly_sales = monthly_avg_sales + surplus_deficit
 
 		while np.min(monthly_sales) < 0:
@@ -126,6 +126,7 @@ class InventoryImpairment:
 		self.arima_forecasts = {}
 		for product in data[self.id_variable]:
 			product_sales = data[data[self.id_variable] == product][ts].values.flatten()
+			print(max(product_sales))
 			forecast = self.fit_auto_arima_and_forecast(series=product_sales)
 			self.arima_forecasts[product] = forecast
 
