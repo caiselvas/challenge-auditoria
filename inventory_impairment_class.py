@@ -68,8 +68,8 @@ class InventoryImpairment:
 		monthly_avg_sales_second_year = sales_second_year / last_month_second_year if last_month_second_year != 0 else 0
 
 		# Generate monthly sales data
-		monthly_avg_sales_first_year = self.generate_monthly_sales(total_year_sales=sales_first_year, monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
-		monthly_avg_sales_second_year = self.generate_monthly_sales(total_year_sales=sales_second_year, monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year)
+		monthly_avg_sales_first_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
+		monthly_avg_sales_second_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year)
 
 		# Adjust monthly sales to match yearly total
 		monthly_sales_first_year = self.calculate_monthly_sales(total_year_sales=sales_first_year, monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
@@ -86,8 +86,12 @@ class InventoryImpairment:
 		# Generate monthly sales data
 		monthly_sales = np.random.normal(loc=monthly_avg_sales, scale=monthly_avg_sales * self.variability, size=last_month)
 
-		# Apply seasonal weights
-		monthly_sales = monthly_sales * self.monthly_weights
+		if len(monthly_sales) < 12:
+			# Pad with zeros
+			monthly_sales = np.pad(monthly_sales, (0, 12 - len(monthly_sales)), mode='constant', constant_values=0)
+		
+		# Apply monthly weights
+		monthly_sales = np.array(monthly_sales) * np.array(self.monthly_weights)
 
 		return monthly_sales
 
@@ -136,14 +140,10 @@ class InventoryImpairment:
 
 		for current, predicted in zip(current_sales, predicted_sales):
 			if predicted <= 0:
-				decrease_indicator.append(float('-inf'))
+				decrease_indicator.append(-100)
 			else:
-				decrease_percentage = - ((current - predicted) / current) * 100 if current != 0 else -10
+				decrease_percentage = - ((current - predicted) / current) * 100 if current != 0 else 0
 				decrease_indicator.append(decrease_percentage)
-
-		# Replace infinite values with the maximum value
-		max_decrease = max(decrease_indicator)
-		decrease_indicator = [max_decrease if value == float('-inf') else value for value in decrease_indicator]
 		
 		return decrease_indicator	
 	
@@ -189,7 +189,8 @@ class InventoryImpairment:
 						epochs=50,
 						batch_size=32,
 						shuffle=True,
-						validation_data=(X_val, X_val))
+						validation_data=(X_val, X_val),
+						verbose = 0)
 		
 		# Create fake data of values that would need depreciation
 		data_new = {
@@ -204,9 +205,9 @@ class InventoryImpairment:
 		# Create the model
 		autoencoder = Model(inputs=input_layer, outputs=encoder)
 
-		references = autoencoder.predict(new_dataframe)
+		references = autoencoder.predict(new_dataframe, verbose=0)
 
-		embeddings = autoencoder.predict(X)
+		embeddings = autoencoder.predict(X, verbose=0)
 
 		reference = references[0]
 
@@ -221,9 +222,9 @@ class InventoryImpairment:
 	def calculate_impairment_index_formula(self, data):
 		# Calculate differences and ratios ensuring no division by zero
 		data['delta_units'] = (data[f'{self.number_of_units_sold_variable_prefix}_{self.second_year}'] - data[f'{self.number_of_units_sold_variable_prefix}_{self.first_year}']) / (data[f'{self.number_of_units_sold_variable_prefix}_{self.first_year}'] + 1)
-		data['delta_unitary_sell_price'] = data[f'{self.variation_unitary_sale_price_firstyear_secondyear_variable}_{self.first_year}_{self.second_year}'] / (data[f'{self.unitary_sale_price_variable_prefix}_{self.first_year}'] + 0.01)
+		data['delta_unitary_sell_price'] = data[self.variation_unitary_sale_price_firstyear_secondyear_variable] / (data[f'{self.unitary_sale_price_variable_prefix}_{self.first_year}'] + 0.01)
 		data['inventory_rotation'] = data[f'{self.number_of_units_sold_variable_prefix}_{self.second_year}'] / (data[f'{self.quantity_stock_variable_prefix}_{self.second_year}'] + 1)
-		data['inactivity'] = data[self.last_exit_days_variable] + data[self.last_entry_date_variable]
+		data['inactivity'] = data[self.last_exit_days_variable] + data[self.last_entry_days_variable]
 
 		# Impairment index
 		data['impairment_index'] = (
@@ -236,7 +237,7 @@ class InventoryImpairment:
 		# Ensure no NaN values
 		data['impairment_index'].fillna(0, inplace=True)
 
-		return data
+		return data['impairment_index']
 	
 	def indexs_interpretation(self, data, impairment_index, autoencoder_indexs, auto_arima_indexs):
 		impairment_index = [i if i > 0 else 0 for i in impairment_index]
@@ -248,21 +249,26 @@ class InventoryImpairment:
 		data['auto_arima_index'] = auto_arima_indexs
 		data['autoencoder_index'] = autoencoder_indexs
 		data['impairment_index'] = impairment_index
-		data['merged_indexs'] = auto_arima_indexs + impairment_index + autoencoder_indexs
+		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['autoencoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
 
+		print("NaN values in merged indexs: ", data['merged_indexs'].isna().sum())
+		print("NaN values in auto_arima indexs: ", data['auto_arima_index'].isna().sum())
+		print("NaN values in autoencoder indexs: ", data['autoencoder_index'].isna().sum())
+		print("NaN values in impairment indexs: ", data['impairment_index'].isna().sum())
 
 		# Mode of the discretised values (by round 2)
-		mode = [round(v, 2) for v in stats.mode(data['merged_indexs'])[0][0]]
+		rounded_merged_indexs = [round(v, 2) for v in data['merged_indexs']]
+		print(f"Rounded merged indexs: {rounded_merged_indexs}")
+		values, counts = stats.mode(rounded_merged_indexs)
+		mode = values[0]
+
+		print(f"Mode of the merged indexs: {values[0]}")
+
 		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}' * (data['merged_indexs'] - mode/self.tolerance)]
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
 
 		return data
-	
-	def explain_indexs(self):
-		"""
-		"""
-		pass
 
 	# CALLABLE METHODS
 
@@ -415,7 +421,7 @@ class InventoryImpairment:
 		self.fitted = True
 		print("Model fitted.")
 
-	def predict(self, tolerance: float = 1.5) -> pd.Series:
+	def predict(self, tolerance: float = 1.5, indexs_weights: dict = {'auto_arima': 1, 'auto_encoder': 1, 'impairment': 1}) -> pd.Series:
 		"""
 		Predict the fair price for the stock based on the fitted model.
 
@@ -424,6 +430,9 @@ class InventoryImpairment:
 		tolerance: float
 			The tolerance to use when calculating the fair price. More tolerance means tendence to less depreciation in the stock.
 
+		indexs_weights: dict
+			The weights to apply to the different indexs when merging them. The keys must be 'auto_arima', 'auto_encoder' and 'impairment'.
+
 		Returns
 		--------
 		fair_price: pd.Series
@@ -431,9 +440,12 @@ class InventoryImpairment:
 		"""
 		assert tolerance > 0, "Tolerance must be greater than 0."
 		assert self.fitted, "Model must be fitted before predicting."
+		assert set(indexs_weights.keys()) == {'auto_arima', 'auto_encoder', 'impairment'}, "indexs_weights must have the keys 'auto_arima', 'auto_encoder' and 'impairment'."
+
+		self.tolerance = tolerance
+		self.indexs_weights = indexs_weights
 
 		# Interpret the indexes
-		self.tolerance = tolerance
 		self.data_indexs_interpreted = self.indexs_interpretation(data=self.data, impairment_index=self.impairment_indexs, autoencoder_indexs=self.autoencoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
 		
 		self.predicted = True
@@ -474,6 +486,10 @@ class InventoryImpairment:
 		]
 		
 		y = data['fair_price'] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
+
+		# Scale the data
+		scaler = MinMaxScaler()
+		X = scaler.fit_transform(X)
 
 		# Split data into train and test sets
 		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.random_state)
