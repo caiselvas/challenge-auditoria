@@ -6,12 +6,12 @@ from tensorflow import keras
 from pmdarima import auto_arima
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from keras.layers import Input, Dense
 from keras.models import Model
 from scipy import stats
-
+from interpret.glassbox import ExplainableBoostingRegressor
+from interpret import show
 
 from typing import Optional, Sequence
 
@@ -25,8 +25,6 @@ class InventoryImpairment:
 		self.random_state = random_state
 
 	def get_monthly_data(self, data):
-		"""
-		"""
 		self.months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 		for month_idx, month in enumerate(self.months):
@@ -35,7 +33,7 @@ class InventoryImpairment:
 
 		for idx, row in data.iterrows():
 			year = pd.to_datetime(row[self.last_exit_date_variable]).year
-			if year == self.predict_year:
+			if year == self.second_year + 1:
 				month_first_year = 12
 				month_second_year = 12
 			elif year == self.second_year:
@@ -63,8 +61,6 @@ class InventoryImpairment:
 			return data
 	
 	def get_monthly_values(self, last_month_first_year: int, last_month_second_year: int, sales_first_year: float, sales_second_year: float):
-		"""
-		"""
 		num_months_in_year = 12
 
 		# Calculate monthly average values
@@ -278,6 +274,7 @@ class InventoryImpairment:
 		last_exit_date_variable: str = "data_darrera_entrada",
 		last_exit_days_variable: str = "dies_ultima_sortida",
 		last_entry_date_variable: str = "data_darrera_entrada",
+		last_entry_days_variable: str = "dies_ultima_entrada",
 		difference_entry_exit_variable: str = "diferencia_entrada_sortida",
 		proportion_variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str] = None,
 		variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str] = None,
@@ -286,16 +283,74 @@ class InventoryImpairment:
 		unitary_cost_stock_variable_prefix: str = "cost_unitari_stock",
 		number_of_units_sold_variable_prefix: str = "unitats",
 		quantity_stock_variable_prefix: str = "stock_final",
+		total_value_stock_variable_prefix: str = "valor_total_stock",
 		first_year: int = 2022,
 		second_year: int = 2023,
-		predict_year: int = 2024,
 		variability: float = 0.0,
-		):
+		) -> None:
 		"""
 		Fit the model to the data provided.
 
 		Parameters
 		----------
+		data: pd.DataFrame
+
+		id_variable: str
+			The name of the column that contains the stock ids.
+
+		stock_ids: Optional[Sequence[str]]
+			The ids present in the stock data. If None, the non NaN ids in with quantity_stock_variable_prefix_{second_year} are used.
+
+		monthly_weights: list[float]
+			The weights to apply to the monthly sales predictions.
+
+		last_exit_date_variable: str
+			The name of the column that contains the last exit date.
+
+		last_exit_days_variable: str
+			The name of the column that contains the last exit days.
+
+		last_entry_date_variable: str
+			The name of the column that contains the last entry date.
+
+		last_entry_days_variable: str
+			The name of the column that contains the last entry days.
+
+		difference_entry_exit_variable: str
+			The name of the column that contains the difference between the entry and exit dates (in days).
+
+		proportion_variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str]
+			The name of the column that contains the proportion of variation of the unitary sale price between the first and second year.
+
+		variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str]
+			The name of the column that contains the variation of the unitary sale price between the first and second year.
+
+		sales_variable_prefix: str
+			The prefix of the sales variables. E.g. "vendes" for "vendes_2022" and "vendes_2023".
+
+		unitary_sale_price_variable_prefix: str
+			The prefix of the unitary sale price variables. E.g. "preu_venda_unitari" for "preu_venda_unitari_2022" and "preu_venda_unitari_2023".
+
+		unitary_cost_stock_variable_prefix: str
+			The prefix of the unitary cost stock variables. E.g. "cost_unitari_stock" for "cost_unitari_stock_2022" and "cost_unitari_stock_2023".
+
+		number_of_units_sold_variable_prefix: str
+			The prefix of the number of units sold variables (the units sold in a year). E.g. "unitats" for "unitats_2022" and "unitats_2023".
+
+		quantity_stock_variable_prefix: str
+			The prefix of the quantity stock variables (the units of a product remaining in the final stock of the second year). E.g. "stock_final" for "stock_final_2023".
+
+		total_value_stock_variable_prefix: str
+			The prefix of the total value stock variables (the total value of the stock in the second year). E.g. "valor_total_stock" for "valor_total_stock_2023".
+
+		first_year: int
+			The first year of the data.
+
+		second_year: int
+			The second year of the data (the year to predict).
+
+		variability: float
+			The variability of the sales data. The higher the variability, the more the sales will differ from the average.
 
 		Returns
 		-------
@@ -315,21 +370,25 @@ class InventoryImpairment:
 		self.last_exit_date_variable = last_exit_date_variable
 		self.last_exit_days_variable = last_exit_days_variable
 		self.last_entry_date_variable = last_entry_date_variable
+		self.last_entry_days_variable = last_entry_days_variable
 		self.difference_entry_exit_variable = difference_entry_exit_variable
 		self.first_year = first_year
 		self.second_year = second_year
-		self.predict_year = predict_year
 		self.sales_variable_prefix = sales_variable_prefix
 		self.variability = variability
 		self.unitary_sale_price_variable_prefix = unitary_sale_price_variable_prefix
 		self.unitary_cost_stock_variable_prefix = unitary_cost_stock_variable_prefix
 		self.number_of_units_sold_variable_prefix = number_of_units_sold_variable_prefix
 		self.quantity_stock_variable_prefix = quantity_stock_variable_prefix
+		self.total_value_stock_variable_prefix = total_value_stock_variable_prefix
 		self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable = proportion_variation_unitary_sale_price_firstyear_secondyear_variable
 		self.variation_unitary_sale_price_firstyear_secondyear_variable = variation_unitary_sale_price_firstyear_secondyear_variable
 
+		self.fitted = False
+		self.predicted = False
+
 		if stock_ids is None:
-			stock_ids = self.data[id_variable].unique()
+			stock_ids = self.data[self.data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"].notna()][id_variable].unique()
 		
 		self.monthly_weights = monthly_weights
 		self.id_variable = id_variable
@@ -337,29 +396,99 @@ class InventoryImpairment:
 		# Get only the rows that are in the stock_ids
 		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)]
 
+		print("Calculating monthly data...")
 		# Get the monthly data
 		self.data_monthly = self.get_monthly_data(data=self.stock_data)
 
+		print("Creating auto arima model...")
 		# Create auto arima model and forecast for each stock
 		self.auto_arima_indexs = self.create_auto_arima_and_forecast(data=self.data_monthly)
 
+		print("Creating auto encoder model...")
 		# Create auto encoder model
 		self.autoencoder_indexs = self.create_auto_encoder(data=self.data, auto_arima_indicators=self.auto_arima_indexs)
 
+		print("Calculating impairment index...")
 		# Calculate impairment index
 		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.data)
 
-	def predict(self, tolerance: float = 1.5):
+		self.fitted = True
+		print("Model fitted.")
+
+	def predict(self, tolerance: float = 1.5) -> pd.Series:
+		"""
+		Predict the fair price for the stock based on the fitted model.
+
+		Parameters
+		-----------
+		tolerance: float
+			The tolerance to use when calculating the fair price. More tolerance means tendence to less depreciation in the stock.
+
+		Returns
+		--------
+		fair_price: pd.Series
+			The fair price predicted for the stock in the second year.
+		"""
 		assert tolerance > 0, "Tolerance must be greater than 0."
+		assert self.fitted, "Model must be fitted before predicting."
 
 		# Interpret the indexes
 		self.tolerance = tolerance
 		self.data_indexs_interpreted = self.indexs_interpretation(data=self.data, impairment_index=self.impairment_indexs, autoencoder_indexs=self.autoencoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
+		
+		self.predicted = True
 
 		return self.data_indexs_interpreted['fair_price']
 	
 	def explain(self):
 		"""
-		"""
-		pass
+		Explain the model using an Explainable Boosting Regressor (EBM). This will show the most important features for the model.
 
+		Parameters
+		-----------
+		None
+
+		Returns
+		--------
+		None
+		"""
+		assert self.fitted and self.predicted, "Model must be fitted and predicted to be explained."
+
+		# Prepare data
+		data = self.data_indexs_interpreted
+		
+		X = data[
+			[
+				f"{self.number_of_units_sold_variable_prefix}_{self.first_year}",
+				f"{self.number_of_units_sold_variable_prefix}_{self.second_year}",
+				f"{self.sales_variable_prefix}_{self.first_year}",
+				f"{self.sales_variable_prefix}_{self.second_year}",
+				f"{self.unitary_sale_price_variable_prefix}_{self.first_year}",
+				f"{self.unitary_sale_price_variable_prefix}_{self.second_year}",
+				f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}",
+				f"{self.quantity_stock_variable_prefix}_{self.second_year}",
+				f"{self.total_value_stock_variable_prefix}_{self.second_year}",
+				f"{self.last_exit_days_variable}",
+				f"{self.last_entry_days_variable}",
+			]
+		]
+		
+		y = data['fair_price'] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
+
+		# Split data into train and test sets
+		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.random_state)
+
+		# Create the EBM model
+		ebm = ExplainableBoostingRegressor(random_state=self.random_state)
+		ebm.fit(X_train, y_train)
+
+		# Predict the test data
+		y_pred = ebm.predict(X_test)
+
+		# Calculate the mean squared error
+		mse = mean_squared_error(y_test, y_pred)
+		print(f"Mean Squared Error for the EBM model used to explain the model: {mse}")
+
+		# Show the explanation
+		ebm_global = ebm.explain_global()
+		show(ebm_global)
