@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+import warnings
 
 from pmdarima import auto_arima
 from sklearn.metrics import mean_squared_error
@@ -378,11 +379,11 @@ class InventoryImpairment:
 		assert variability >= 0, "Variability must be greater or equal to 0."
 		# Init all variables
 		if proportion_variation_unitary_sale_price_firstyear_secondyear_variable is None:
-			print(f"No proportion_variation_unitary_sale_price_firstyear_secondyear_variable provided. Using proporcio_variacio_preu_venda_unitari_{first_year}_{second_year} instead.")
+			warnings.warn(f"No proportion_variation_unitary_sale_price_firstyear_secondyear_variable provided. Using proporcio_variacio_preu_venda_unitari_{first_year}_{second_year} instead.", UserWarning)
 			proportion_variation_unitary_sale_price_firstyear_secondyear_variable = f"proporcio_variacio_preu_venda_unitari_{first_year}_{second_year}"
 
 		if variation_unitary_sale_price_firstyear_secondyear_variable is None:
-			print(f"No variation_unitary_sale_price_firstyear_secondyear_variable provided. Using variacio_preu_venda_unitari_{first_year}_{second_year} instead.")
+			warnings.warn(f"No variation_unitary_sale_price_firstyear_secondyear_variable provided. Using variacio_preu_venda_unitari_{first_year}_{second_year} instead.", UserWarning)
 			variation_unitary_sale_price_firstyear_secondyear_variable = f"variacio_preu_venda_unitari_{first_year}_{second_year}"
 		
 		self.data = data
