@@ -59,8 +59,8 @@ class InventoryImpairment:
 			for month_idx, month in enumerate(self.months):
 				row[f'{month}_2022'] = values_first_year[month_idx] if month_idx < len(values_first_year) else 0
 				row[f'{month}_2023'] = values_second_year[month_idx] if month_idx < len(values_second_year) else 0
-			
-			return data
+			data.loc[idx] = row
+		return data
 	
 	def get_monthly_values(self, last_month_first_year: int, last_month_second_year: int, sales_first_year: float, sales_second_year: float):
 		num_months_in_year = 12
@@ -68,6 +68,7 @@ class InventoryImpairment:
 		# Calculate monthly average values
 		monthly_avg_sales_first_year = sales_first_year / last_month_first_year if last_month_first_year != 0 else 0
 		monthly_avg_sales_second_year = sales_second_year / last_month_second_year if last_month_second_year != 0 else 0
+
 
 		# Generate monthly sales data
 		monthly_avg_sales_first_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
@@ -119,6 +120,8 @@ class InventoryImpairment:
 	def create_auto_arima_and_forecast(self, data):
 		data = data.copy()
 		ts = [f"{month}_{year}" for year in [self.first_year, self.second_year] for month in self.months]
+
+		print(data.isna().sum())
 		data.fillna(0, inplace=True)
 
 		self.arima_forecasts = {}
@@ -128,6 +131,8 @@ class InventoryImpairment:
 			self.arima_forecasts[product] = forecast
 
 		sum_product_forecasts = [np.sum(forecast) for forecast in self.arima_forecasts.values()]
+
+		print(sum_product_forecasts)
 
 		indicators = self.calculate_decrease(current_sales=data[f"{self.sales_variable_prefix}_{self.second_year}"], predicted_sales=sum_product_forecasts)
 
@@ -153,12 +158,12 @@ class InventoryImpairment:
 	def create_auto_encoder(self, data, auto_arima_indicators):
 		data = data.copy()
 		# New variables
-		data['forecast_index'] = auto_arima_indicators
+		data['forecast_index'] = auto_arima_indicators.reset_index(drop = True)
 		data['cost_value'] = data[f"{self.unitary_sale_price_variable_prefix}_{self.second_year}"] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
 		data['proportion_sales_stock'] = data[f"{self.number_of_units_sold_variable_prefix}_{self.second_year}"] / data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"]
 
 		# Drop rows with missing values
-
+		
 		data.fillna(0)
 
 		# Select only relevant featuress
@@ -172,7 +177,7 @@ class InventoryImpairment:
 		]
 
 		X = data[features]
-
+		
 		# Split data into train and test sets
 		X_train, X_val = train_test_split(X, test_size=0.2, random_state=self.random_state)
 
@@ -222,6 +227,7 @@ class InventoryImpairment:
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
 
+		print(distances)
 		return pd.Series(distances)
 	
 	def calculate_impairment_index_formula(self, data):
@@ -422,6 +428,8 @@ class InventoryImpairment:
 		print("Calculating monthly data...")
 		# Get the monthly data
 		self.data_monthly = self.get_monthly_data(data=self.stock_data)
+
+		print(self.data_monthly.head(10))
 		print(f"Created Data monthly shape: {self.data_monthly.shape}")
 
 		print("Creating auto arima model...")
