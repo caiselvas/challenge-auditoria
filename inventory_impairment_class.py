@@ -157,7 +157,8 @@ class InventoryImpairment:
 		data['proportion_sales_stock'] = data[f"{self.number_of_units_sold_variable_prefix}_{self.second_year}"] / data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"]
 
 		# Drop rows with missing values
-		data.dropna(inplace=True)
+
+		data.fillna(0)
 
 		# Select only relevant featuress
 		features = [
@@ -255,23 +256,26 @@ class InventoryImpairment:
 	
 	def indexs_interpretation(self, data, impairment_index, auto_encoder_indexs, auto_arima_indexs):
 		data = data.copy()
-		print(f"INDEXS_INTERPRETATION CALLED WITH --> len auto_arima_indexs: {len(auto_arima_indexs)}, len auto_encoder_indexs: {len(auto_encoder_indexs)}, len impairment_index: {len(impairment_index)}, shape data: {data.shape}")
+
+		data.reset_index(inplace = True)
+
+		print(f"INDEXS_INTERPRETATION CALLED WITH --> len auto_arima_indexs: {auto_arima_indexs.shape}, len auto_encoder_indexs: {auto_encoder_indexs.shape}, len impairment_index: {impairment_index.shape}, shape data: {data.shape}")
 		print("NaN values in auto_encoder indexs start: ", auto_encoder_indexs.isna().sum())
-		data['auto_arima_index'] = auto_arima_indexs
-		data['autoencoder_index'] = auto_encoder_indexs
+		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
+		data['autoencoder_index'] = auto_encoder_indexs.reset_index(drop=True)
 		print("NaN values in auto_encoder indexs assign: ", data['autoencoder_index'].isna().sum())
-		data['impairment_index'] = impairment_index
+		data['impairment_index'] = impairment_index.reset_index(drop=True)
 		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['autoencoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
 
 		# Mode of the discretised values (by round 2)
 		rounded_merged_indexs = [round(v, 2) for v in data['merged_indexs']]
 		print(f"Rounded merged indexs: {rounded_merged_indexs}")
-		values, counts = stats.mode(rounded_merged_indexs)
-		mode = values[0]
+		values, counts = stats.mode(rounded_merged_indexs, keepdims=False)
+		mode = values
 
-		print(f"Mode of the merged indexs: {values[0]}")
+		print(f"Mode of the merged indexs: {values}")
 
-		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}' * (data['merged_indexs'] - mode/self.tolerance)]
+		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - mode/self.tolerance)
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
 
@@ -460,7 +464,7 @@ class InventoryImpairment:
 		self.indexs_weights = indexs_weights
 
 		# Interpret the indexes
-		self.data_indexs_interpreted = self.indexs_interpretation(data=self.data, impairment_index=self.impairment_indexs, auto_encoder_indexs=self.auto_encoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
+		self.data_indexs_interpreted = self.indexs_interpretation(data=self.stock_data, impairment_index=self.impairment_indexs, auto_encoder_indexs=self.auto_encoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
 		
 		self.predicted = True
 
