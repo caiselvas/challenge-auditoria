@@ -72,7 +72,7 @@ class InventoryImpairment:
 
 		# Generate monthly sales data
 		monthly_avg_sales_first_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
-		monthly_avg_sales_second_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year)
+		monthly_avg_sales_second_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year, monthly_avg_sales_previous = monthly_avg_sales_first_year)
 
 		# Adjust monthly sales to match yearly total
 		monthly_sales_first_year = self.calculate_monthly_sales(total_year_sales=sales_first_year, monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
@@ -85,9 +85,15 @@ class InventoryImpairment:
 
 		return monthly_sales_first_year, monthly_sales_second_year
 
-	def generate_monthly_sales(self, monthly_avg_sales: float, last_month: int):
-		# Generate monthly sales data
-		monthly_sales = np.random.normal(loc=monthly_avg_sales, scale=monthly_avg_sales * self.variability, size=last_month)
+	def generate_monthly_sales(self, monthly_avg_sales: float, last_month: int, monthly_avg_sales_previous: Optional[float] = None):
+		# Generate monthly sales data 
+		
+		if monthly_avg_sales_previous != None:
+			monthly_sales = np.linspace(monthly_avg_sales_previous, monthly_avg_sales, last_month)
+			monthly_sales += np.random.normal(loc=0, scale=monthly_avg_sales * self.variability, size=last_month)
+
+		else:
+			monthly_sales = np.random.normal(loc=monthly_avg_sales, scale=monthly_avg_sales * self.variability, size=last_month)
 
 		if len(monthly_sales) < 12:
 			# Pad with zeros
