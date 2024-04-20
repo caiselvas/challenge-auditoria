@@ -539,7 +539,7 @@ class InventoryImpairment:
 
 		# Scale the data
 		scaler = MinMaxScaler()
-		X = scaler.fit_transform(X)
+		X = pd.DataFrame(scaler.fit_transform(X), columns = X.columns)
 
 		# Split data into train and test sets
 		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.random_state)
