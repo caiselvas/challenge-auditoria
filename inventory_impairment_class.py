@@ -129,7 +129,6 @@ class InventoryImpairment:
 		data = data.copy()
 		ts = [f"{month}_{year}" for year in [self.first_year, self.second_year] for month in self.months]
 
-		print(data.isna().sum())
 		data.fillna(0, inplace=True)
 
 		self.arima_forecasts = {}
@@ -148,14 +147,13 @@ class InventoryImpairment:
 
 		sum_product_forecasts = [np.sum(forecast) for forecast in self.arima_forecasts.values()]
 
-		print(sum_product_forecasts)
-
 		indicators = self.calculate_decrease(current_sales=data[f"{self.sales_variable_prefix}_{self.second_year}"], predicted_sales=sum_product_forecasts)
 
 		scaler = MinMaxScaler()
 		indicators_by_column = scaler.fit_transform([[i] for i in indicators])
 		
 		indicators = [i[0] for i in indicators_by_column]
+
 
 		return pd.Series(indicators)
 
@@ -172,15 +170,16 @@ class InventoryImpairment:
 		return decrease_indicator	
 	
 	def create_auto_encoder(self, data, auto_arima_indicators):
-		data = data.copy()
+		data = data.copy().reset_index()
 		# New variables
 		data['forecast_index'] = auto_arima_indicators.reset_index(drop = True)
 		data['cost_value'] = data[f"{self.unitary_sale_price_variable_prefix}_{self.second_year}"] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
 		data['proportion_sales_stock'] = data[f"{self.number_of_units_sold_variable_prefix}_{self.second_year}"] / data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"]
 
 		# Drop rows with missing values
-		
-		data.fillna(0)
+		print("index" ,data['forecast_index'])
+		print("nas", data.isna().sum())
+		data = data.fillna(0)
 
 		# Select only relevant featuress
 		features = [
@@ -212,7 +211,7 @@ class InventoryImpairment:
 
 		# Train the Autoencoder model
 		autoencoder.fit(X_train, X_train,
-						epochs=50,
+						epochs=100,
 						batch_size=32,
 						shuffle=True,
 						validation_data=(X_val, X_val),
@@ -238,12 +237,10 @@ class InventoryImpairment:
 		reference = references[0]
 
 		distances = np.linalg.norm(embeddings - reference, axis=1)
-		
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
 
-		print(distances)
 		return pd.Series(distances)
 	
 	def calculate_impairment_index_formula(self, data):
@@ -513,8 +510,6 @@ class InventoryImpairment:
 
 		# Prepare data
 		data = self.data_indexs_interpreted.copy()
-
-		print(data.isna().sum())
 		
 		X = data[
 			[
