@@ -13,6 +13,7 @@ from keras.models import Model
 from scipy import stats
 from interpret.glassbox import ExplainableBoostingRegressor
 from interpret import show
+import json
 
 from typing import Optional, Sequence
 
@@ -69,10 +70,11 @@ class InventoryImpairment:
 		monthly_avg_sales_first_year = sales_first_year / last_month_first_year if last_month_first_year != 0 else 0
 		monthly_avg_sales_second_year = sales_second_year / last_month_second_year if last_month_second_year != 0 else 0
 
+		value_monthly_avg_sales_first_year = monthly_avg_sales_first_year
 
 		# Generate monthly sales data
 		monthly_avg_sales_first_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
-		monthly_avg_sales_second_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year, monthly_avg_sales_previous = monthly_avg_sales_first_year)
+		monthly_avg_sales_second_year = self.generate_monthly_sales(monthly_avg_sales=monthly_avg_sales_second_year, last_month=last_month_second_year, monthly_avg_sales_previous = value_monthly_avg_sales_first_year)
 
 		# Adjust monthly sales to match yearly total
 		monthly_sales_first_year = self.calculate_monthly_sales(total_year_sales=sales_first_year, monthly_avg_sales=monthly_avg_sales_first_year, last_month=last_month_first_year)
@@ -131,11 +133,18 @@ class InventoryImpairment:
 		data.fillna(0, inplace=True)
 
 		self.arima_forecasts = {}
-		for product in data[self.id_variable]:
-			product_sales = data[data[self.id_variable] == product][ts].values.flatten()
-			print(max(product_sales))
-			forecast = self.fit_auto_arima_and_forecast(series=product_sales)
-			self.arima_forecasts[product] = forecast
+		try:
+			with open("./forecast/arima.json", "r") as json_file:
+				self.arima_forecasts = json.load( json_file)
+		except:
+			for product in data[self.id_variable]:
+				product_sales = data[data[self.id_variable] == product][ts].values.flatten()
+				print(max(product_sales))
+				forecast = self.fit_auto_arima_and_forecast(series=product_sales)
+				self.arima_forecasts[product] = forecast
+			new_forecasts = {key: list(value) for key, value in self.arima_forecasts.items()}
+			with open("./forecast/arima.json", "w") as json_file:
+				json.dump(new_forecasts, json_file)
 
 		sum_product_forecasts = [np.sum(forecast) for forecast in self.arima_forecasts.values()]
 
