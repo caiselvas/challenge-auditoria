@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import warnings
-
+from scipy.stats import mstats
 from pmdarima import auto_arima
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
@@ -237,9 +237,18 @@ class InventoryImpairment:
 		reference = references[0]
 
 		distances = np.linalg.norm(embeddings - reference, axis=1)
+
+		distances = mstats.winsorize(distances, limits=[0, 0.1])
+
+		print("maxim_dist", max(distances))
+		print("mean dist", np.mean(distances))
+		print("min dist", min(distances))
+
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
+
+		
 
 		return pd.Series(distances)
 	
@@ -492,7 +501,7 @@ class InventoryImpairment:
 		
 		self.predicted = True
 
-		return self.data_indexs_interpreted['fair_price']
+		return self.data_indexs_interpreted
 	
 	def explain(self):
 		"""
