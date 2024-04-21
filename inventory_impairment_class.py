@@ -21,10 +21,11 @@ class InventoryImpairment:
 	"""
 	Inventory Impairment model class to predict the inventory impairment for a given stock, based on the past two years of data.
 	"""		
-	def __init__(self, random_state: int = 42) -> None:
+	def __init__(self, random_state: int = 42, forecast_file: Optional[str] = None) -> None:
 		np.random.seed(random_state)
 		tf.random.set_seed(random_state)
 		self.random_state = random_state
+		self.forecast_file = forecast_file
 
 	def get_monthly_data(self, data):
 		data = data.copy()
@@ -132,10 +133,21 @@ class InventoryImpairment:
 		data.fillna(0, inplace=True)
 
 		self.arima_forecasts = {}
-		try:
-			with open("./forecast/arima.json", "r") as json_file:
-				self.arima_forecasts = json.load( json_file)
-		except:
+		if self.forecast_file != None:
+			try:
+				with open(self.forecast_file, "r") as json_file:
+					self.arima_forecasts = json.load( json_file)
+			except:
+				print("Couldn't open file. Fitting auto_arima model.")
+				for product in data[self.id_variable]:
+					product_sales = data[data[self.id_variable] == product][ts].values.flatten()
+					print(max(product_sales))
+					forecast = self.fit_auto_arima_and_forecast(series=product_sales)
+					self.arima_forecasts[product] = forecast
+				new_forecasts = {key: list(value) for key, value in self.arima_forecasts.items()}
+				with open(self.forecast_file, "w") as json_file:
+					json.dump(new_forecasts, json_file)
+		else:
 			for product in data[self.id_variable]:
 				product_sales = data[data[self.id_variable] == product][ts].values.flatten()
 				print(max(product_sales))
@@ -149,6 +161,7 @@ class InventoryImpairment:
 
 		indicators = self.calculate_decrease(current_sales=data[f"{self.sales_variable_prefix}_{self.second_year}"], predicted_sales=sum_product_forecasts)
 
+		indicators = mstats.winsorize(np.array(indicators),  limits=[0.3, 0])
 		scaler = MinMaxScaler()
 		indicators_by_column = scaler.fit_transform([[i] for i in indicators])
 		
@@ -304,15 +317,22 @@ class InventoryImpairment:
 		print(f"Rounded merged indexs: {rounded_merged_indexs}")
 		values, counts = stats.mode(rounded_merged_indexs, keepdims=False)
 		mode = values
+		mean = data['merged_indexs'].mean()
 
 		print(f"Mode of the merged indexs: {values}")
+		print(f"Mean of the merged indexs: {mean}")
 
-		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - mode/self.tolerance)
+		criterion = mode if self.use_mode else mean
+
+		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - criterion/self.tolerance)
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
 		return data
 
 	# CALLABLE METHODS
+ 
+	def set_forecast_file(self, file):
+		self.forecast_file = file
 
 	def fit(self, 
 		data, 
@@ -472,7 +492,7 @@ class InventoryImpairment:
 		self.fitted = True
 		print("Model fitted.")
 
-	def predict(self, tolerance: float = 1.5, indexs_weights: dict = {'auto_arima': 1, 'auto_encoder': 1, 'impairment': 1}) -> pd.Series:
+	def predict(self, tolerance: float = 1.5, indexs_weights: dict = {'auto_arima': 1, 'auto_encoder': 1, 'impairment': 1}, use_mode: bool = True) -> pd.Series:
 		"""
 		Predict the fair price for the stock based on the fitted model.
 
@@ -495,6 +515,7 @@ class InventoryImpairment:
 
 		self.tolerance = tolerance
 		self.indexs_weights = indexs_weights
+		self.use_mode = use_mode
 
 		# Interpret the indexes
 		self.data_indexs_interpreted = self.indexs_interpretation(data=self.stock_data, impairment_index=self.impairment_indexs, auto_encoder_indexs=self.auto_encoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
