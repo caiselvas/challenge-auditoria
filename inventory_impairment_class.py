@@ -579,7 +579,7 @@ class InventoryImpairment:
 		# Show the explanation
 		ebm_global = ebm.explain_global()
 		show(ebm_global)
-		return ebm, X
+		return ebm, X, y
 	def stock_management(self):
 		"""
 		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
