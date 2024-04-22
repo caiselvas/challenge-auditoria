@@ -588,3 +588,35 @@ class InventoryImpairment:
 		# Show the explanation
 		ebm_global = ebm.explain_global()
 		show(ebm_global)
+	def stock_management(self):
+		"""
+		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
+			Must have called fit and predict before.
+
+		Parameters
+		-----------
+		None
+
+		Returns
+		--------
+		stock_values: pd.Series
+			The recommended stock for each material.
+		"""
+		for product_id, sales_predictions in  self.arima_forecasts.items():
+			total_projected_sales = sum(sales_predictions)
+
+			quarter_projected_sales = sum(sales_predictions[:4])
+			current_stock = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), f"{self.quantity_stock_variable_prefix}_{self.second_year}"].values[0]
+			fair_price = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), 'fair_price'].values[0]
+
+			total_projected_sales = total_projected_sales / fair_price # Unit projected sales
+			quarter_projected_sales = quarter_projected_sales / fair_price
+			# Determine if additional stock is needed or if there's excess inventory
+			if total_projected_sales < current_stock:
+				recommendation = f"Recommendation for {product_id}: Reduce stock. Projected sales: {total_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
+			
+			if total_projected_sales > current_stock:
+				if quarter_projected_sales > current_stock:
+					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
+
+			print(recommendation)
