@@ -614,3 +614,6 @@ class InventoryImpairment:
 			print(recommendation)
 	def to_excel(self, filepath):
 		self.data_indexs_interpreted.drop("index", axis=1).to_excel(filepath, index=False)
+
+	def forecasts_to_excel(self, filepath):
+		pass
