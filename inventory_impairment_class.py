@@ -21,7 +21,7 @@ class InventoryImpairment:
 	"""
 	Inventory Impairment model class to predict the inventory impairment for a given stock, based on the past two years of data.
 	"""		
-	def __init__(self, random_state: int = 42, forecast_file: Optional[str] = None) -> None:
+	def __init__(self, random_state: int = 42, forecast_file: str = './forecast/arima.json') -> None:
 		np.random.seed(random_state)
 		tf.random.set_seed(random_state)
 		self.random_state = random_state
@@ -133,29 +133,20 @@ class InventoryImpairment:
 		data.fillna(0, inplace=True)
 
 		self.arima_forecasts = {}
-		if self.forecast_file != None:
-			try:
-				with open(self.forecast_file, "r") as json_file:
-					self.arima_forecasts = json.load( json_file)
-			except:
-				print("Couldn't open file. Fitting auto_arima model.")
-				for product in data[self.id_variable]:
-					product_sales = data[data[self.id_variable] == product][ts].values.flatten()
-					print(max(product_sales))
-					forecast = self.fit_auto_arima_and_forecast(series=product_sales)
-					self.arima_forecasts[product] = forecast
-				new_forecasts = {key: list(value) for key, value in self.arima_forecasts.items()}
-				with open(self.forecast_file, "w") as json_file:
-					json.dump(new_forecasts, json_file)
-		else:
+		try:
+			with open(self.forecast_file, "r") as json_file:
+				self.arima_forecasts = json.load( json_file)
+		except:
+			print("Couldn't open file. Fitting auto_arima model.")
 			for product in data[self.id_variable]:
 				product_sales = data[data[self.id_variable] == product][ts].values.flatten()
 				print(max(product_sales))
 				forecast = self.fit_auto_arima_and_forecast(series=product_sales)
 				self.arima_forecasts[product] = forecast
 			new_forecasts = {key: list(value) for key, value in self.arima_forecasts.items()}
-			with open("./forecast/arima.json", "w") as json_file:
+			with open(self.forecast_file, "w") as json_file:
 				json.dump(new_forecasts, json_file)
+
 
 		sum_product_forecasts = [np.sum(forecast) for forecast in self.arima_forecasts.values()]
 
@@ -588,6 +579,7 @@ class InventoryImpairment:
 		# Show the explanation
 		ebm_global = ebm.explain_global()
 		show(ebm_global)
+		return ebm, X
 	def stock_management(self):
 		"""
 		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
