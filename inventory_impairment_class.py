@@ -612,3 +612,5 @@ class InventoryImpairment:
 					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
 
 			print(recommendation)
+	def to_excel(self, filepath):
+		self.data_indexs_interpreted.drop("index", axis=1).to_excel(filepath, index=False)
