@@ -14,9 +14,16 @@ def calculate_monthly_sales(yearly_total, monthly_avg_sales, last_month):
 
     return monthly_sales
 
-def generate_monthly_sales(yearly_total, monthly_avg_sales, last_month, VARIABILITY):
+def generate_monthly_sales(yearly_total, monthly_avg_sales, last_month, VARIABILITY, monthly_avg_sales_previous = None):
     # Generate monthly data
     monthly_sales = np.random.normal(monthly_avg_sales, monthly_avg_sales * VARIABILITY, last_month)
+
+    if monthly_avg_sales_previous != None:
+        monthly_sales = np.linspace(monthly_avg_sales_previous, monthly_avg_sales, last_month)
+        monthly_sales += np.random.normal(loc=0, scale=monthly_avg_sales * VARIABILITY, size=last_month)
+
+    else:
+        monthly_sales = np.random.normal(loc=monthly_avg_sales, scale=monthly_avg_sales * VARIABILITY, size=last_month)
 
     # Apply seasonal adjustments
     if last_month > 8:
@@ -54,7 +61,7 @@ def main(sales22 = 1000, sales23 = 1200, last_month_2022=6, last_month_2023=6, V
 
     # Generate monthly sales data
     sales_2022 = generate_monthly_sales(vendes_2022, monthly_avg_sales_2022, last_month_2022, VARIABILITY)  if last_month_2022 != 0 else [0 for _ in range(12)]
-    sales_2023 = generate_monthly_sales(vendes_2023, monthly_avg_sales_2023, last_month_2023, VARIABILITY)  if last_month_2023 != 0 else [0 for _ in range(12)]
+    sales_2023 = generate_monthly_sales(vendes_2023, monthly_avg_sales_2023, last_month_2023, VARIABILITY, monthly_avg_sales_2022)  if last_month_2023 != 0 else [0 for _ in range(12)]
     # Adjust monthly sales to match yearly total
     monthly_vendes_2022 = calculate_monthly_sales(vendes_2022, sales_2022, last_month_2022)  if last_month_2022 != 0 else [0 for _ in range(12)]
     monthly_vendes_2023 = calculate_monthly_sales(vendes_2023, sales_2023, last_month_2023)  if last_month_2023 != 0 else [0 for _ in range(12)]
@@ -66,7 +73,7 @@ def main(sales22 = 1000, sales23 = 1200, last_month_2022=6, last_month_2023=6, V
         last_month_2023 = 12
 
     # Plot monthly sales
-    plot_monthly_sales(months, monthly_vendes_2022, monthly_vendes_2023, last_month_2022, last_month_2023)
+    #plot_monthly_sales(months, monthly_vendes_2022, monthly_vendes_2023, last_month_2022, last_month_2023)
     return monthly_vendes_2022, monthly_vendes_2023
 
 if __name__ == "__main__":
@@ -97,7 +104,7 @@ if __name__ == "__main__":
             month23 = 12
         ventes22 = row["vendes_2022"] if not pd.isna(row["vendes_2022"]) else 0
         ventes23 = row["vendes_2023"] if not pd.isna(row["vendes_2023"]) else 0
-        values22, values23 = main(sales22 = ventes22, sales23 = ventes23 ,last_month_2022=month22, last_month_2023=month23, VARIABILITY=0)
+        values22, values23 = main(sales22 = ventes22, sales23 = ventes23 ,last_month_2022=month22, last_month_2023=month23, VARIABILITY=0.5)
         for month_idx, month in enumerate(months):
             row[f'{month}_2022'] = values22[month_idx] if month_idx < len(values22) else 0
             row[f'{month}_2023'] = values23[month_idx] if month_idx < len(values23) else 0
