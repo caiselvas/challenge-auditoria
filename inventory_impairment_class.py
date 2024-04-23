@@ -62,6 +62,7 @@ class InventoryImpairment:
 				row[f'{month}_2022'] = values_first_year[month_idx] if month_idx < len(values_first_year) else 0
 				row[f'{month}_2023'] = values_second_year[month_idx] if month_idx < len(values_second_year) else 0
 			data.loc[idx] = row
+		
 		return data
 	
 	def get_monthly_values(self, last_month_first_year: int, last_month_second_year: int, sales_first_year: float, sales_second_year: float):
@@ -140,7 +141,6 @@ class InventoryImpairment:
 			print("Couldn't open file. Fitting auto_arima model.")
 			for product in data[self.id_variable]:
 				product_sales = data[data[self.id_variable] == product][ts].values.flatten()
-				print(max(product_sales))
 				forecast = self.fit_auto_arima_and_forecast(series=product_sales)
 				self.arima_forecasts[product] = forecast
 			new_forecasts = {key: list(value) for key, value in self.arima_forecasts.items()}
@@ -181,8 +181,6 @@ class InventoryImpairment:
 		data['proportion_sales_stock'] = data[f"{self.number_of_units_sold_variable_prefix}_{self.second_year}"] / data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"]
 
 		# Drop rows with missing values
-		print("index" ,data['forecast_index'])
-		print("nas", data.isna().sum())
 		data = data.fillna(0)
 
 		# Select only relevant featuress
@@ -223,11 +221,11 @@ class InventoryImpairment:
 		
 		# Create fake data of values that would need depreciation
 		data_new = {
-			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-2],
-			self.difference_entry_exit_variable: [600],
-			self.last_exit_days_variable: [500],
-			'proportion_sales_stock' : [0.1],
-			'cost_value' : [0.1],
+			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-10],
+			self.difference_entry_exit_variable: [730],
+			self.last_exit_days_variable: [365],
+			'proportion_sales_stock' : [0.01],
+			'cost_value' : [0.01],
 			'forecast_index' : [1]}
 		new_dataframe = pd.DataFrame(data_new)
 
@@ -244,15 +242,9 @@ class InventoryImpairment:
 
 		distances = mstats.winsorize(distances, limits=[0, 0.1])
 
-		print("maxim_dist", max(distances))
-		print("mean dist", np.mean(distances))
-		print("min dist", min(distances))
-
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
-
-		
 
 		return pd.Series(distances)
 	
@@ -266,10 +258,10 @@ class InventoryImpairment:
 
 		# Impairment index
 		data['impairment_index'] = (
-			-0.3 * data['delta_units'] +
-			-0.2 * data['delta_unitary_sell_price'] +
-			0.2 * np.log1p(data['inactivity']) +
-			-0.3 * data['inventory_rotation']
+			self.impairment_index_coefficients[0] * data['delta_units'] +
+			self.impairment_index_coefficients[1] * data['delta_unitary_sell_price'] +
+			self.impairment_index_coefficients[2] * np.log1p(data['inactivity']) +
+			self.impairment_index_coefficients[3] * data['inventory_rotation']
 		)
 		
 		# Ensure no NaN values
@@ -295,41 +287,78 @@ class InventoryImpairment:
 		# Aquest és pq sinó hi ha 15 fair prices que no es poden calcular
 		data = data.fillna(0)
 
-		print(f"INDEXS_INTERPRETATION CALLED WITH --> len auto_arima_indexs: {auto_arima_indexs.shape}, len auto_encoder_indexs: {auto_encoder_indexs.shape}, len impairment_index: {impairment_index.shape}, shape data: {data.shape}")
-		print("NaN values in auto_encoder indexs start: ", auto_encoder_indexs.isna().sum())
-		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
-		data['autoencoder_index'] = auto_encoder_indexs.reset_index(drop=True)
-		print("NaN values in auto_encoder indexs assign: ", data['autoencoder_index'].isna().sum())
 		data['impairment_index'] = impairment_index.reset_index(drop=True)
-		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['autoencoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
+		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
+		data['auto_encoder_index'] = auto_encoder_indexs.reset_index(drop=True)
+		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['auto_encoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
 
 		# Mode of the discretised values (by round 2)
 		rounded_merged_indexs = [round(v, 2) for v in data['merged_indexs']]
-		print(f"Rounded merged indexs: {rounded_merged_indexs}")
 		values, counts = stats.mode(rounded_merged_indexs, keepdims=False)
 		mode = values
 		mean = data['merged_indexs'].mean()
 
-		print(f"Mode of the merged indexs: {values}")
-		print(f"Mean of the merged indexs: {mean}")
-
-		criterion = mode if self.use_mode else mean
+		if isinstance(self.threshold, str):
+			if self.threshold == 'mode':
+				criterion = mode
+			elif self.threshold == 'mean':
+				criterion = mean
+		else:
+			criterion = self.threshold
 
 		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - criterion/self.tolerance)
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
 		return data
 
+	def forecasts_to_excel(self, filepath: str):
+		self.data_indexs_interpreted.to_excel(filepath, index=False)
+
 	# CALLABLE METHODS
  
 	def set_forecast_file(self, file):
 		self.forecast_file = file
+
+	def stock_management(self):
+		"""
+		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
+			Must have called fit and predict before.
+
+		Parameters
+		-----------
+		None
+
+		Returns
+		--------
+		stock_values: pd.Series
+			The recommended stock for each material.
+		"""
+		for product_id, sales_predictions in  self.arima_forecasts.items():
+			total_projected_sales = sum(sales_predictions)
+
+			quarter_projected_sales = sum(sales_predictions[:4])
+			current_stock = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), f"{self.quantity_stock_variable_prefix}_{self.second_year}"].values[0]
+			fair_price = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), 'fair_price'].values[0]
+
+			total_projected_sales = total_projected_sales / fair_price # Unit projected sales
+			quarter_projected_sales = quarter_projected_sales / fair_price
+			
+			# Determine if additional stock is needed or if there's excess inventory
+			if total_projected_sales < current_stock:
+				recommendation = f"Recommendation for {product_id}: Reduce stock. Projected sales: {total_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
+			
+			if total_projected_sales > current_stock:
+				if quarter_projected_sales > current_stock:
+					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
+
+			print(recommendation)
 
 	def fit(self, 
 		data, 
 		id_variable: str = 'material', 
 		stock_ids: Optional[Sequence[str]] = None,
 		monthly_weights: list[float] = [0.8, 1, 1, 1, 1, 1.2, 1.3, 1.1, 1, 1, 1, 1],
+		impairment_index_coefficients: list[float] = [-0.3, -0.2, 0.2, -0.3],
 		last_exit_date_variable: str = "data_darrera_entrada",
 		last_exit_days_variable: str = "dies_ultima_sortida",
 		last_entry_date_variable: str = "data_darrera_entrada",
@@ -362,6 +391,9 @@ class InventoryImpairment:
 
 		monthly_weights: list[float]
 			The weights to apply to the monthly sales predictions.
+
+		impairment_index_coefficients: list[float]
+			The coefficients to apply to the different variables in the impairment index formula. The order is [delta_units, delta_unitary_sell_price, inactivity, inventory_rotation].
 
 		last_exit_date_variable: str
 			The name of the column that contains the last exit date.
@@ -416,6 +448,8 @@ class InventoryImpairment:
 		None
 		"""
 		assert variability >= 0, "Variability must be greater or equal to 0."
+		assert len(impairment_index_coefficients) == 4, "Impairment index coefficients must have length 4 (delta_units, delta_unitary_sell_price, inactivity, inventory_rotation)."
+
 		# Init all variables
 		if proportion_variation_unitary_sale_price_firstyear_secondyear_variable is None:
 			warnings.warn(f"No proportion_variation_unitary_sale_price_firstyear_secondyear_variable provided. Using proporcio_variacio_preu_venda_unitari_{first_year}_{second_year} instead.", UserWarning)
@@ -426,6 +460,9 @@ class InventoryImpairment:
 			variation_unitary_sale_price_firstyear_secondyear_variable = f"variacio_preu_venda_unitari_{first_year}_{second_year}"
 		
 		self.data = data
+		self.impairment_index_coefficients = impairment_index_coefficients
+		self.monthly_weights = monthly_weights
+		self.id_variable = id_variable
 		self.last_exit_date_variable = last_exit_date_variable
 		self.last_exit_days_variable = last_exit_days_variable
 		self.last_entry_date_variable = last_entry_date_variable
@@ -448,42 +485,34 @@ class InventoryImpairment:
 
 		if stock_ids is None:
 			stock_ids = self.data[self.data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"].notna()][id_variable].unique()
-		
-		self.monthly_weights = monthly_weights
-		self.id_variable = id_variable
-
 
 		# Get only the rows that are in the stock_ids
 		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)]
-		print(f"Original Data shape: {self.data.shape}")
-		print(f"Created Stock data shape: {self.stock_data.shape}")
 
 		print("Calculating monthly data...")
 		# Get the monthly data
 		self.data_monthly = self.get_monthly_data(data=self.stock_data)
 
-		print(self.data_monthly.head(10))
-		print(f"Created Data monthly shape: {self.data_monthly.shape}")
-
 		print("Creating auto arima model...")
 		# Create auto arima model and forecast for each stock
 		self.auto_arima_indexs = self.create_auto_arima_and_forecast(data=self.data_monthly)
-		print(f"Created Auto arima indexs length: {len(self.auto_arima_indexs)}")
 
 		print("Creating auto encoder model...")
 		# Create auto encoder model
 		self.auto_encoder_indexs = self.create_auto_encoder(data=self.stock_data, auto_arima_indicators=self.auto_arima_indexs)
-		print(f"Created Auto encoder indexs length: {len(self.auto_encoder_indexs)}")
 
 		print("Calculating impairment index...")
 		# Calculate impairment index
 		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.stock_data)
-		print(f"Created Impairment indexs length: {len(self.impairment_indexs)}")
 
 		self.fitted = True
 		print("Model fitted.")
 
-	def predict(self, tolerance: float = 1.5, indexs_weights: dict = {'auto_arima': 1, 'auto_encoder': 1, 'impairment': 1}, use_mode: bool = True) -> pd.Series:
+	def predict(self, 
+			tolerance: float = 1.5, 
+			indexs_weights: dict = {'impairment': 0.1, 'auto_arima': 0.1, 'auto_encoder': 1}, 
+			threshold: bool = True
+			) -> pd.Series:
 		"""
 		Predict the fair price for the stock based on the fitted model.
 
@@ -503,15 +532,21 @@ class InventoryImpairment:
 		assert tolerance > 0, "Tolerance must be greater than 0."
 		assert self.fitted, "Model must be fitted before predicting."
 		assert set(indexs_weights.keys()) == {'auto_arima', 'auto_encoder', 'impairment'}, "indexs_weights must have the keys 'auto_arima', 'auto_encoder' and 'impairment'."
+		assert threshold in ['mode', 'mean'] if isinstance(threshold, str) else (isinstance(threshold, (int, float)) and threshold > 0), "Threshold must be 'mode', 'mean' or a positive number."
 
 		self.tolerance = tolerance
 		self.indexs_weights = indexs_weights
-		self.use_mode = use_mode
+		self.threshold = threshold
 
 		# Interpret the indexes
 		self.data_indexs_interpreted = self.indexs_interpretation(data=self.stock_data, impairment_index=self.impairment_indexs, auto_encoder_indexs=self.auto_encoder_indexs, auto_arima_indexs=self.auto_arima_indexs)
 		
 		self.predicted = True
+
+		if 'index' in self.data_indexs_interpreted.columns:
+			self.data_indexs_interpreted.drop(columns=['index'], inplace=True)
+
+		self.forecasts_to_excel("./data/results_inventory_impairment.xlsx")
 
 		return self.data_indexs_interpreted
 	
@@ -525,7 +560,14 @@ class InventoryImpairment:
 
 		Returns
 		--------
-		None
+		ebm: ExplainableBoostingRegressor
+			The EBM model used to explain the model.
+
+		X: pd.DataFrame
+			The data used to explain the model.
+		
+		y: pd.Series
+			The target variable used to explain the model.
 		"""
 		assert self.fitted and self.predicted, "Model must be fitted and predicted to be explained."
 
@@ -550,13 +592,8 @@ class InventoryImpairment:
 		
 		y = data['fair_price'] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
 
-		print(f"y has {y.isna().sum()} na's")
-
-		print(y)
-		# hi ha 1 na per la cara
+		# Fill NaN values
 		y = y.fillna(0)
-
-		
 
 		# Scale the data
 		scaler = MinMaxScaler()
@@ -579,41 +616,6 @@ class InventoryImpairment:
 		# Show the explanation
 		ebm_global = ebm.explain_global()
 		show(ebm_global)
+		
 		return ebm, X, y
-	def stock_management(self):
-		"""
-		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
-			Must have called fit and predict before.
 
-		Parameters
-		-----------
-		None
-
-		Returns
-		--------
-		stock_values: pd.Series
-			The recommended stock for each material.
-		"""
-		for product_id, sales_predictions in  self.arima_forecasts.items():
-			total_projected_sales = sum(sales_predictions)
-
-			quarter_projected_sales = sum(sales_predictions[:4])
-			current_stock = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), f"{self.quantity_stock_variable_prefix}_{self.second_year}"].values[0]
-			fair_price = self.data_indexs_interpreted.loc[self.data_indexs_interpreted[self.id_variable] == float(product_id), 'fair_price'].values[0]
-
-			total_projected_sales = total_projected_sales / fair_price # Unit projected sales
-			quarter_projected_sales = quarter_projected_sales / fair_price
-			# Determine if additional stock is needed or if there's excess inventory
-			if total_projected_sales < current_stock:
-				recommendation = f"Recommendation for {product_id}: Reduce stock. Projected sales: {total_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
-			
-			if total_projected_sales > current_stock:
-				if quarter_projected_sales > current_stock:
-					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
-
-			print(recommendation)
-	def to_excel(self, filepath):
-		self.data_indexs_interpreted.drop("index", axis=1).to_excel(filepath, index=False)
-
-	def forecasts_to_excel(self, filepath):
-		pass
