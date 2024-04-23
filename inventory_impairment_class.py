@@ -261,8 +261,6 @@ class InventoryImpairment:
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
 
-		print(f"Autoencoder distances: {distances}")
-
 		return pd.Series(distances)
 	
 	def calculate_impairment_index_formula(self, data):
@@ -318,10 +316,13 @@ class InventoryImpairment:
 		if isinstance(self.threshold, str):
 			if self.threshold == 'mode':
 				criterion = mode
+				print(f"Mode used as threshold: {criterion}")
 			elif self.threshold == 'mean':
 				criterion = mean
+				print(f"Mean used as threshold: {criterion}")
 		else:
 			criterion = self.threshold
+			print(f"Value used as threshold: {criterion}")
 
 		data['fair_price'] = data[f'{self.unitary_sale_price_variable_prefix}_{self.second_year}'] - data[f'{self.unitary_cost_stock_variable_prefix}_{self.second_year}'] * (data['merged_indexs'] - criterion/self.tolerance)
 
