@@ -50,8 +50,7 @@ L'estructura dels fitxers d'aquest directori és:
     │   └── timesnet.json     # JSON que conté les prediccions pels pròxims 12 mesos usant TimesNet
     ├── data                    # Carpeta que els diferents Excels en estats diferents
     │   └── results_inventory_impairment.xlsx    # Excel final creat pel model
-    ├── documents                    # Informes de descripció del projecte
-    │   └── giaupc_23_04_24.pdf    # Document resum, més visual i entendor
+    ├── reports                    # Informes de descripció del projecte
     └── README.md
 
 ## Requeriments
