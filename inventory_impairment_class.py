@@ -6,7 +6,7 @@ import warnings
 from scipy.stats import mstats
 from pmdarima import auto_arima
 from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.model_selection import train_test_split
 from keras.layers import Input, Dense
 from keras.models import Model
@@ -196,10 +196,16 @@ class InventoryImpairment:
 			'forecast_index'
 		]
 
+		
 		X = data[features]
+
+		scaler = StandardScaler()
 		
 		# Split data into train and test sets
 		X_train, X_val = train_test_split(X, test_size=0.2, random_state=self.random_state)
+
+		X_train = pd.DataFrame(scaler.fit_transform(X_train))
+		X_val = pd.DataFrame(scaler.transform(X_val))
 
 		# Define autoencoder architecture
 		input_dim = X_train.shape[1]
@@ -207,16 +213,19 @@ class InventoryImpairment:
 
 		input_layer = Input(shape=(input_dim,))
 		encoder = Dense(128, activation='relu')(input_layer)
+		encoder = Dense(64, activation='relu')(encoder)
 		encoder = Dense(encoding_dim, activation='relu')(encoder)
-		decoder = Dense(128, activation='relu')(encoder)
+
+		decoder = Dense(64, activation='relu')(encoder)
+		decoder = Dense(128, activation='relu')(decoder)
 		decoder = Dense(input_dim, activation='relu')(decoder)
 
 		autoencoder = Model(inputs=input_layer, outputs=decoder)
-		autoencoder.compile(optimizer='adam', loss='mse')
+		autoencoder.compile(optimizer="adam", loss='mse')
 
 		# Train the Autoencoder model
 		autoencoder.fit(X_train, X_train,
-						epochs=100,
+						epochs=70,
 						batch_size=32,
 						shuffle=True,
 						validation_data=(X_val, X_val),
@@ -224,9 +233,9 @@ class InventoryImpairment:
 		
 		# Create fake data of values that would need depreciation
 		data_new = {
-			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-10],
-			self.proportion_variation_units_firstyear_secondyear_variable: [-10],
-			self.proportion_variation_sales_firstyear_secondyear_variable: [-10],
+			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-100],
+			self.proportion_variation_units_firstyear_secondyear_variable: [-100],
+			self.proportion_variation_sales_firstyear_secondyear_variable: [-100],
 			self.difference_entry_exit_variable: [730],
 			self.last_exit_days_variable: [365],
 			'proportion_sales_stock' : [0.01],
@@ -234,17 +243,13 @@ class InventoryImpairment:
 			'forecast_index' : [1]}
 
 		new_dataframe = pd.DataFrame(data_new)
-
 		# Create the model
+		new_dataframe = pd.DataFrame(scaler.transform(new_dataframe))
 		autoencoder = Model(inputs=input_layer, outputs=encoder)
 
 		references = autoencoder.predict(new_dataframe, verbose=0)
 
-		print(f"Autoencoder references: {references}")
-
 		embeddings = autoencoder.predict(X, verbose=0)
-
-		print(f"Autoencoder embeddings: {embeddings}")
 
 		reference = references[0]
 
@@ -547,7 +552,6 @@ class InventoryImpairment:
 		print("Creating auto encoder model...")
 		# Create auto encoder model
 		self.auto_encoder_indexs = self.create_auto_encoder(data=self.stock_data, auto_arima_indicators=self.auto_arima_indexs)
-		print(self.auto_encoder_indexs)
 
 		print("Calculating impairment index...")
 		# Calculate impairment index
@@ -598,13 +602,14 @@ class InventoryImpairment:
 
 		return self.data_indexs_interpreted
 	
-	def explain(self):
+	def explain(self, scale=True):
 		"""
 		Explain the model using an Explainable Boosting Regressor (EBM). This will show the most important features for the model.
 
 		Parameters
 		-----------
-		None
+		scale: bool
+			Wether to scale the data or not
 
 		Returns
 		--------
@@ -650,8 +655,10 @@ class InventoryImpairment:
 		y = y.fillna(0)
 
 		# Scale the data
-		scaler = MinMaxScaler()
-		X = pd.DataFrame(scaler.fit_transform(X), columns = X.columns)
+		if scale:
+			scaler = MinMaxScaler()
+			X = pd.DataFrame(scaler.fit_transform(X), columns = X.columns)
+		
 
 		# Split data into train and test sets
 		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.random_state)
