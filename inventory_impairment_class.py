@@ -221,11 +221,11 @@ class InventoryImpairment:
 		
 		# Create fake data of values that would need depreciation
 		data_new = {
-			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-2],
-			self.difference_entry_exit_variable: [600],
-			self.last_exit_days_variable: [500],
-			'proportion_sales_stock' : [0.1],
-			'cost_value' : [0.1],
+			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-10],
+			self.difference_entry_exit_variable: [730],
+			self.last_exit_days_variable: [365],
+			'proportion_sales_stock' : [0.01],
+			'cost_value' : [0.01],
 			'forecast_index' : [1]}
 		new_dataframe = pd.DataFrame(data_new)
 
@@ -287,10 +287,10 @@ class InventoryImpairment:
 		# Aquest és pq sinó hi ha 15 fair prices que no es poden calcular
 		data = data.fillna(0)
 
-		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
-		data['autoencoder_index'] = auto_encoder_indexs.reset_index(drop=True)
 		data['impairment_index'] = impairment_index.reset_index(drop=True)
-		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['autoencoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
+		data['auto_arima_index'] = auto_arima_indexs.reset_index(drop=True)
+		data['auto_encoder_index'] = auto_encoder_indexs.reset_index(drop=True)
+		data['merged_indexs'] = self.indexs_weights['auto_arima'] * data['auto_arima_index'] + self.indexs_weights['auto_encoder'] * data['auto_encoder_index'] + self.indexs_weights['impairment'] * data['impairment_index']
 
 		# Mode of the discretised values (by round 2)
 		rounded_merged_indexs = [round(v, 2) for v in data['merged_indexs']]
@@ -310,7 +310,15 @@ class InventoryImpairment:
 
 		data["new_value"] = data[["fair_price", f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]].min(axis=1)
 		return data
-	
+
+	def forecasts_to_excel(self, filepath: str):
+		self.data_indexs_interpreted.to_excel(filepath, index=False)
+
+	# CALLABLE METHODS
+ 
+	def set_forecast_file(self, file):
+		self.forecast_file = file
+
 	def stock_management(self):
 		"""
 		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
@@ -344,14 +352,6 @@ class InventoryImpairment:
 					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
 
 			print(recommendation)
-
-	def forecasts_to_excel(self, filepath: str):
-		self.data_indexs_interpreted.to_excel(filepath, index=False)
-
-	# CALLABLE METHODS
- 
-	def set_forecast_file(self, file):
-		self.forecast_file = file
 
 	def fit(self, 
 		data, 
@@ -508,7 +508,11 @@ class InventoryImpairment:
 		self.fitted = True
 		print("Model fitted.")
 
-	def predict(self, tolerance: float = 1.5, indexs_weights: dict = {'auto_arima': 1, 'auto_encoder': 1, 'impairment': 1}, threshold: bool = True) -> pd.Series:
+	def predict(self, 
+			tolerance: float = 1.5, 
+			indexs_weights: dict = {'impairment': 0.1, 'auto_arima': 0.1, 'auto_encoder': 1}, 
+			threshold: bool = True
+			) -> pd.Series:
 		"""
 		Predict the fair price for the stock based on the fitted model.
 
