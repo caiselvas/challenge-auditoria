@@ -103,8 +103,15 @@ inventory_data_merged_df['diferencia_entrada_sortida'] = inventory_data_merged_d
 # Add new variables
 inventory_data_merged_df['preu_venda_unitari_2022'] = inventory_data_merged_df['vendes_2022'] / inventory_data_merged_df['unitats_2022']
 # inventory_data_merged_df['preu_venda_unitari_2023'] = inventory_data_merged_df['vendes_2023'] / inventory_data_merged_df['unitats_2023'] # No és necessari, ja que ja tenim el preu de venda unitari del 2023
+
 inventory_data_merged_df['variacio_preu_venda_unitari_2022_2023'] = inventory_data_merged_df['preu_venda_unitari_2023'] - inventory_data_merged_df['preu_venda_unitari_2022']
 inventory_data_merged_df['proporcio_variacio_preu_venda_unitari_2022_2023'] = inventory_data_merged_df['variacio_preu_venda_unitari_2022_2023'] / inventory_data_merged_df['preu_venda_unitari_2022']
+
+inventory_data_merged_df['variacio_unitats_2022_2023'] = inventory_data_merged_df['unitats_2023'] - inventory_data_merged_df['unitats_2022']
+inventory_data_merged_df['proporcio_variacio_unitats_2022_2023'] = inventory_data_merged_df['variacio_unitats_2022_2023'] / inventory_data_merged_df['unitats_2022']
+
+inventory_data_merged_df['variacio_vendes_2022_2023'] = inventory_data_merged_df['vendes_2023'] - inventory_data_merged_df['vendes_2022']
+inventory_data_merged_df['proporcio_variacio_vendes_2022_2023'] = inventory_data_merged_df['variacio_vendes_2022_2023'] / inventory_data_merged_df['vendes_2022']
 
 # Reorder columns
 # material, unitats_2022, vendes_2022, preu_venda_unitari_2022, unitats_2023, vendes_2023, preu_venda_unitari_2023, 
@@ -113,7 +120,7 @@ inventory_data_merged_df['proporcio_variacio_preu_venda_unitari_2022_2023'] = in
 # stock_final_2023, valor_total_stock_2023, cost_unitari_stock_2023
 
 columns_before = inventory_data_merged_df.columns
-inventory_data_merged_df = inventory_data_merged_df[['material', 'unitats_2022', 'vendes_2022', 'preu_venda_unitari_2022', 'unitats_2023', 'vendes_2023', 'preu_venda_unitari_2023', 'variacio_preu_venda_unitari_2022_2023', 'proporcio_variacio_preu_venda_unitari_2022_2023', 'data_darrera_entrada', 'dies_ultima_entrada', 'data_darrera_sortida', 'dies_ultima_sortida', 'diferencia_entrada_sortida', 'stock_final_2023', 'valor_total_stock_2023', 'cost_unitari_stock_2023']]
+inventory_data_merged_df = inventory_data_merged_df[['material', 'unitats_2022', 'vendes_2022', 'preu_venda_unitari_2022', 'unitats_2023', 'vendes_2023', 'preu_venda_unitari_2023', 'variacio_unitats_2022_2023', 'proporcio_variacio_unitats_2022_2023', 'variacio_vendes_2022_2023', 'proporcio_variacio_vendes_2022_2023', 'variacio_preu_venda_unitari_2022_2023', 'proporcio_variacio_preu_venda_unitari_2022_2023', 'data_darrera_entrada', 'dies_ultima_entrada', 'data_darrera_sortida', 'dies_ultima_sortida', 'diferencia_entrada_sortida', 'stock_final_2023', 'valor_total_stock_2023', 'cost_unitari_stock_2023']]
 columns_after = inventory_data_merged_df.columns
 
 # Delete the row with the material 'Total'

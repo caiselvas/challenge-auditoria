@@ -174,7 +174,8 @@ class InventoryImpairment:
 		return decrease_indicator	
 	
 	def create_auto_encoder(self, data, auto_arima_indicators):
-		data = data.copy().reset_index()
+		data = data.copy()
+
 		# New variables
 		data['forecast_index'] = auto_arima_indicators.reset_index(drop = True)
 		data['cost_value'] = data[f"{self.unitary_sale_price_variable_prefix}_{self.second_year}"] / data[f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}"]
@@ -186,6 +187,8 @@ class InventoryImpairment:
 		# Select only relevant featuress
 		features = [
 			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable,
+			self.proportion_variation_units_firstyear_secondyear_variable,
+			self.proportion_variation_sales_firstyear_secondyear_variable,
 			self.difference_entry_exit_variable,
 			self.last_exit_days_variable, 
 			'proportion_sales_stock', 
@@ -222,11 +225,14 @@ class InventoryImpairment:
 		# Create fake data of values that would need depreciation
 		data_new = {
 			self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable: [-10],
+			self.proportion_variation_units_firstyear_secondyear_variable: [-10],
+			self.proportion_variation_sales_firstyear_secondyear_variable: [-10],
 			self.difference_entry_exit_variable: [730],
 			self.last_exit_days_variable: [365],
 			'proportion_sales_stock' : [0.01],
 			'cost_value' : [0.01],
 			'forecast_index' : [1]}
+
 		new_dataframe = pd.DataFrame(data_new)
 
 		# Create the model
@@ -234,7 +240,11 @@ class InventoryImpairment:
 
 		references = autoencoder.predict(new_dataframe, verbose=0)
 
+		print(f"Autoencoder references: {references}")
+
 		embeddings = autoencoder.predict(X, verbose=0)
+
+		print(f"Autoencoder embeddings: {embeddings}")
 
 		reference = references[0]
 
@@ -245,6 +255,8 @@ class InventoryImpairment:
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
 		distances = [1-d[0] for d in distances]
+
+		print(f"Autoencoder distances: {distances}")
 
 		return pd.Series(distances)
 	
@@ -344,6 +356,7 @@ class InventoryImpairment:
 			quarter_projected_sales = quarter_projected_sales / fair_price
 			
 			# Determine if additional stock is needed or if there's excess inventory
+			recommendation = False
 			if total_projected_sales < current_stock:
 				recommendation = f"Recommendation for {product_id}: Reduce stock. Projected sales: {total_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
 			
@@ -351,7 +364,8 @@ class InventoryImpairment:
 				if quarter_projected_sales > current_stock:
 					recommendation = f"Recommendation for {product_id}: Order additional stock (in a quatrimester you won't have any). Projected quatrimestral sales: {quarter_projected_sales}, Current stock: {current_stock}, Fair price: {fair_price}"
 
-			print(recommendation)
+			if recommendation:
+				print(recommendation)
 
 	def fit(self, 
 		data, 
@@ -366,6 +380,10 @@ class InventoryImpairment:
 		difference_entry_exit_variable: str = "diferencia_entrada_sortida",
 		proportion_variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str] = None,
 		variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str] = None,
+		proportion_variation_units_firstyear_secondyear_variable: Optional[str] = None,
+		variation_units_firstyear_secondyear_variable: Optional[str] = None,
+		proportion_variation_sales_firstyear_secondyear_variable: Optional[str] = None,
+		variation_sales_firstyear_secondyear_variable: Optional[str] = None,
 		sales_variable_prefix: str = "vendes",
 		unitary_sale_price_variable_prefix: str = "preu_venda_unitari",
 		unitary_cost_stock_variable_prefix: str = "cost_unitari_stock",
@@ -416,6 +434,15 @@ class InventoryImpairment:
 		variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str]
 			The name of the column that contains the variation of the unitary sale price between the first and second year.
 
+		proportion_variation_units_2022_2023_variable: Optional[str]
+			The name of the column that contains the proportion of variation of the units sold between the first and second year.
+
+		variation_units_2022_2023_variable: Optional[str]
+			The name of the column that contains the variation of the units sold between the first and second year.
+
+		proportion_sales_2022_2023_variable: Optional[str]
+			The name of the column that contains the proportion of variation of the sales between the first and second year.
+
 		sales_variable_prefix: str
 			The prefix of the sales variables. E.g. "vendes" for "vendes_2022" and "vendes_2023".
 
@@ -458,6 +485,22 @@ class InventoryImpairment:
 		if variation_unitary_sale_price_firstyear_secondyear_variable is None:
 			warnings.warn(f"No variation_unitary_sale_price_firstyear_secondyear_variable provided. Using variacio_preu_venda_unitari_{first_year}_{second_year} instead.", UserWarning)
 			variation_unitary_sale_price_firstyear_secondyear_variable = f"variacio_preu_venda_unitari_{first_year}_{second_year}"
+
+		if proportion_variation_units_firstyear_secondyear_variable is None:
+			warnings.warn(f"No proportion_variation_units_firstyear_secondyear_variable provided. Using proporcio_variacio_unitats_{first_year}_{second_year} instead.", UserWarning)
+			proportion_variation_units_firstyear_secondyear_variable = f"proporcio_variacio_unitats_{first_year}_{second_year}"
+		
+		if variation_units_firstyear_secondyear_variable is None:
+			warnings.warn(f"No variation_units_firstyear_secondyear_variable provided. Using variacio_unitats_{first_year}_{second_year} instead.", UserWarning)
+			variation_units_firstyear_secondyear_variable = f"variacio_unitats_{first_year}_{second_year}"
+		
+		if proportion_variation_sales_firstyear_secondyear_variable is None:
+			warnings.warn(f"No proportion_variation_sales_firstyear_secondyear_variable provided. Using proporcio_variacio_vendes_{first_year}_{second_year} instead.", UserWarning)
+			proportion_variation_sales_firstyear_secondyear_variable = f"proporcio_variacio_vendes_{first_year}_{second_year}"
+
+		if variation_sales_firstyear_secondyear_variable is None:
+			warnings.warn(f"No variation_sales_firstyear_secondyear_variable provided. Using variacio_vendes_{first_year}_{second_year} instead.", UserWarning)
+			variation_sales_firstyear_secondyear_variable = f"variacio_vendes_{first_year}_{second_year}"
 		
 		self.data = data
 		self.impairment_index_coefficients = impairment_index_coefficients
@@ -479,6 +522,10 @@ class InventoryImpairment:
 		self.total_value_stock_variable_prefix = total_value_stock_variable_prefix
 		self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable = proportion_variation_unitary_sale_price_firstyear_secondyear_variable
 		self.variation_unitary_sale_price_firstyear_secondyear_variable = variation_unitary_sale_price_firstyear_secondyear_variable
+		self.proportion_variation_units_firstyear_secondyear_variable = proportion_variation_units_firstyear_secondyear_variable
+		self.variation_units_firstyear_secondyear_variable = variation_units_firstyear_secondyear_variable
+		self.proportion_variation_sales_firstyear_secondyear_variable = proportion_variation_sales_firstyear_secondyear_variable
+		self.variation_sales_firstyear_secondyear_variable = variation_sales_firstyear_secondyear_variable
 
 		self.fitted = False
 		self.predicted = False
@@ -487,7 +534,7 @@ class InventoryImpairment:
 			stock_ids = self.data[self.data[f"{self.quantity_stock_variable_prefix}_{self.second_year}"].notna()][id_variable].unique()
 
 		# Get only the rows that are in the stock_ids
-		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)]
+		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)].reset_index(drop=True)
 
 		print("Calculating monthly data...")
 		# Get the monthly data
@@ -500,6 +547,7 @@ class InventoryImpairment:
 		print("Creating auto encoder model...")
 		# Create auto encoder model
 		self.auto_encoder_indexs = self.create_auto_encoder(data=self.stock_data, auto_arima_indicators=self.auto_arima_indexs)
+		print(self.auto_encoder_indexs)
 
 		print("Calculating impairment index...")
 		# Calculate impairment index
@@ -582,6 +630,12 @@ class InventoryImpairment:
 				f"{self.sales_variable_prefix}_{self.second_year}",
 				f"{self.unitary_sale_price_variable_prefix}_{self.first_year}",
 				f"{self.unitary_sale_price_variable_prefix}_{self.second_year}",
+				self.variation_units_firstyear_secondyear_variable,
+				self.proportion_variation_units_firstyear_secondyear_variable,
+				self.variation_sales_firstyear_secondyear_variable,
+				self.proportion_variation_sales_firstyear_secondyear_variable,
+				self.variation_unitary_sale_price_firstyear_secondyear_variable,
+				self.proportion_variation_unitary_sale_price_firstyear_secondyear_variable,
 				f"{self.unitary_cost_stock_variable_prefix}_{self.second_year}",
 				f"{self.quantity_stock_variable_prefix}_{self.second_year}",
 				f"{self.total_value_stock_variable_prefix}_{self.second_year}",
