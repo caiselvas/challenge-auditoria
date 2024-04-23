@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 # DATA CLEAN
 info_df = pd.read_excel('data/inventory_data_semi_raw.xlsx', sheet_name='Inf.')
 accounting_info_1_df = pd.read_excel('data/inventory_data_semi_raw.xlsx', sheet_name='info_comptable_1')
@@ -108,10 +108,29 @@ inventory_data_merged_df['variacio_preu_venda_unitari_2022_2023'] = inventory_da
 inventory_data_merged_df['proporcio_variacio_preu_venda_unitari_2022_2023'] = inventory_data_merged_df['variacio_preu_venda_unitari_2022_2023'] / inventory_data_merged_df['preu_venda_unitari_2022']
 
 inventory_data_merged_df['variacio_unitats_2022_2023'] = inventory_data_merged_df['unitats_2023'] - inventory_data_merged_df['unitats_2022']
-inventory_data_merged_df['proporcio_variacio_unitats_2022_2023'] = inventory_data_merged_df['variacio_unitats_2022_2023'] / inventory_data_merged_df['unitats_2022']
+inventory_data_merged_df['proporcio_variacio_unitats_2022_2023'] = np.where(
+    inventory_data_merged_df['unitats_2022'] != 0,
+    inventory_data_merged_df['variacio_unitats_2022_2023'] / inventory_data_merged_df['unitats_2022'],
+    100 
+)
+inventory_data_merged_df['proporcio_variacio_unitats_2022_2023'] = np.where(
+    (inventory_data_merged_df['unitats_2023'] == 0) & (inventory_data_merged_df['unitats_2022'] == 0),
+    0,
+    inventory_data_merged_df['proporcio_variacio_unitats_2022_2023']
+)
 
 inventory_data_merged_df['variacio_vendes_2022_2023'] = inventory_data_merged_df['vendes_2023'] - inventory_data_merged_df['vendes_2022']
-inventory_data_merged_df['proporcio_variacio_vendes_2022_2023'] = inventory_data_merged_df['variacio_vendes_2022_2023'] / inventory_data_merged_df['vendes_2022']
+inventory_data_merged_df['proporcio_variacio_vendes_2022_2023'] = np.where(
+    inventory_data_merged_df['vendes_2022'] != 0,
+    inventory_data_merged_df['variacio_vendes_2022_2023'] / inventory_data_merged_df['vendes_2022'],
+    100 
+)
+
+inventory_data_merged_df['proporcio_variacio_vendes_2022_2023'] = np.where(
+    (inventory_data_merged_df['vendes_2023'] == 0) & (inventory_data_merged_df['vendes_2022'] == 0),
+    0,
+    inventory_data_merged_df['proporcio_variacio_vendes_2022_2023']
+)
 
 # Reorder columns
 # material, unitats_2022, vendes_2022, preu_venda_unitari_2022, unitats_2023, vendes_2023, preu_venda_unitari_2023, 
