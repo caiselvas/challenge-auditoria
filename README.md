@@ -73,4 +73,4 @@ Per executar `xat_rag.ipynb`, cal tenir el fitxer `/data/results_inventory_impai
 
 ## Problemes
 
-Si teniu qualsevol problema, no dubteu en crear una nova issue. Intentare'm resoldre'l, si podem.
+Si teniu qualsevol problema, no dubteu en crear una nova issue. Intentarem resoldre'l, si podem.
