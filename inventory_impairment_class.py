@@ -115,7 +115,7 @@ class InventoryImpairment:
 
 		while np.min(monthly_sales) < 0:
 			# Adjust monthly data to match yearly total
-			monthly_sales = monthly_avg_sales + surplus_deficit
+			monthly_sales[last_month-1] = monthly_avg_sales[last_month-1] + surplus_deficit
 			monthly_sales = np.maximum(monthly_sales, 0)
 			surplus_deficit = total_year_sales - np.sum(monthly_sales)
 
