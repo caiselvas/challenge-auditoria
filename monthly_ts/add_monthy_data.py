@@ -8,10 +8,10 @@ def calculate_monthly_sales(yearly_total, monthly_avg_sales, last_month):
     monthly_sales = monthly_avg_sales + surplus_deficit
     while np.min(monthly_sales) <0:   
         # Adjust monthly data to match yearly total
-        monthly_sales = monthly_avg_sales + surplus_deficit
+        monthly_sales[last_month-1] = monthly_avg_sales[last_month-1] + surplus_deficit
         monthly_sales = np.maximum(monthly_sales, 0)
         surplus_deficit = yearly_total - np.sum(monthly_sales)
-
+    print(last_month)
     return monthly_sales
 
 def generate_monthly_sales(yearly_total, monthly_avg_sales, last_month, VARIABILITY, monthly_avg_sales_previous = None):
