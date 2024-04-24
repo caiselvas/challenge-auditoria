@@ -335,9 +335,21 @@ class InventoryImpairment:
 	# CALLABLE METHODS
  
 	def set_forecast_file(self, file):
+		"""
+		Set the file with the precalculated forecasts, to avoid recalculating them.
+
+		Parameters
+		----------
+		file: str
+			The path to the file with the forecasts.
+
+		Returns
+		--------
+		None
+		"""
 		self.forecast_file = file
 
-	def stock_management(self):
+	def stock_management(self) -> None:
 		"""
 		Based on the predicted forecast, return an stock recommendation to better deal with shortages or excess. 
 			Must have called fit and predict before.
@@ -348,9 +360,10 @@ class InventoryImpairment:
 
 		Returns
 		--------
-		stock_values: pd.Series
-			The recommended stock for each material.
+		None
 		"""
+		assert self.predicted, "Model must be predicted before calling stock_management."
+
 		for product_id, sales_predictions in  self.arima_forecasts.items():
 			total_projected_sales = sum(sales_predictions)
 
@@ -440,14 +453,17 @@ class InventoryImpairment:
 		variation_unitary_sale_price_firstyear_secondyear_variable: Optional[str]
 			The name of the column that contains the variation of the unitary sale price between the first and second year.
 
-		proportion_variation_units_2022_2023_variable: Optional[str]
+		proportion_variation_units_firstyear_secondyear_variable: Optional[str]
 			The name of the column that contains the proportion of variation of the units sold between the first and second year.
 
-		variation_units_2022_2023_variable: Optional[str]
+		variation_units_firstyear_secondyear_variable: Optional[str]
 			The name of the column that contains the variation of the units sold between the first and second year.
 
-		proportion_sales_2022_2023_variable: Optional[str]
+		proportion_variation_sales_firstyear_secondyear_variable: Optional[str]
 			The name of the column that contains the proportion of variation of the sales between the first and second year.
+		
+		variation_sales_firstyear_secondyear_variable: Optional[str]
+			The name of the column that contains the variation of the sales between the first and second year.
 
 		sales_variable_prefix: str
 			The prefix of the sales variables. E.g. "vendes" for "vendes_2022" and "vendes_2023".
