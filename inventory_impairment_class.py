@@ -253,13 +253,20 @@ class InventoryImpairment:
 
 		reference = references[0]
 
-		distances = np.linalg.norm(embeddings - reference, axis=1)
+		if self.similarity == "cos":
+			distances = np.dot(embeddings, reference) / (np.linalg.norm(embeddings, axis=1) * np.linalg.norm(reference))
+		else:
+			distances = np.linalg.norm(embeddings - reference, axis=1)
 
-		distances = mstats.winsorize(distances, limits=[0, 0.1])
+			distances = mstats.winsorize(distances, limits=[0, 0.1])
 
 		scaler = MinMaxScaler()
 		distances = scaler.fit_transform([[d] for d in distances])
-		distances = [1-d[0] for d in distances]
+
+		if self.similarity != "cos":
+			distances = [1-d[0] for d in distances]
+		else:
+			distances = [d[0] for d in distances]
 
 		return pd.Series(distances)
 	
@@ -412,6 +419,7 @@ class InventoryImpairment:
 		first_year: int = 2022,
 		second_year: int = 2023,
 		variability: float = 0.0,
+		similarity: Optional[str] = 'dist'
 		) -> None:
 		"""
 		Fit the model to the data provided.
@@ -491,6 +499,12 @@ class InventoryImpairment:
 
 		variability: float
 			The variability of the sales data. The higher the variability, the more the sales will differ from the average.
+		
+		similarity: str
+			The metric to use for distance calculation
+			
+			- "dist": Euclidean distance.
+        	- "cos": Cosine similarity (converted to distance).
 
 		Returns
 		-------
@@ -548,6 +562,7 @@ class InventoryImpairment:
 		self.variation_units_firstyear_secondyear_variable = variation_units_firstyear_secondyear_variable
 		self.proportion_variation_sales_firstyear_secondyear_variable = proportion_variation_sales_firstyear_secondyear_variable
 		self.variation_sales_firstyear_secondyear_variable = variation_sales_firstyear_secondyear_variable
+		self.similarity = similarity
 
 		self.fitted = False
 		self.predicted = False
@@ -557,6 +572,10 @@ class InventoryImpairment:
 
 		# Get only the rows that are in the stock_ids
 		self.stock_data = self.data[self.data[self.id_variable].isin(stock_ids)].reset_index(drop=True)
+
+		print("Calculating impairment index...")
+		# Calculate impairment index
+		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.stock_data)
 
 		print("Calculating monthly data...")
 		# Get the monthly data
@@ -569,10 +588,6 @@ class InventoryImpairment:
 		print("Creating auto encoder model...")
 		# Create auto encoder model
 		self.auto_encoder_indexs = self.create_auto_encoder(data=self.stock_data, auto_arima_indicators=self.auto_arima_indexs)
-
-		print("Calculating impairment index...")
-		# Calculate impairment index
-		self.impairment_indexs = self.calculate_impairment_index_formula(data=self.stock_data)
 
 		self.fitted = True
 		print("Model fitted.")
