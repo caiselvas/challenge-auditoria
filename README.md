@@ -1,4 +1,4 @@
-# Challenge-auditoria (WINNERS of the Challenge)
+# Challenge-auditoria
 
 > Aquest repositori conté el model desenvolupat i creat per l'equip GIA UPC (Roger Baiges Trilla, Pau Hidalgo Pujol i Cai Selvas Sala) per al challenge del col·legi d'auditors Censors de Catalunya d'auditoria i IA.
 
