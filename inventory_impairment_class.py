@@ -253,22 +253,40 @@ class InventoryImpairment:
 
 		reference = references[0]
 
-		if self.similarity == "cos":
-			distances = np.dot(embeddings, reference) / (np.linalg.norm(embeddings, axis=1) * np.linalg.norm(reference))
+		if self.similarity == "dist_cos":
+			cos_distances = np.abs(np.dot(embeddings, reference)) / (np.linalg.norm(embeddings, axis=1) * np.linalg.norm(reference))
+
+			eucl_distances = np.linalg.norm(embeddings - reference, axis=1)
+			eucl_distances = mstats.winsorize(eucl_distances, limits=[0, 0.1])
+
+			scaler = MinMaxScaler()
+			cos_distances = scaler.fit_transform([[d] for d in cos_distances])
+			eucl_distances = scaler.fit_transform([[d] for d in eucl_distances])
+
+			eucl_distances = [1-d[0] for d in eucl_distances]
+			cos_distances = [d[0] for d in cos_distances]
+
+			distances = np.mean(np.array([eucl_distances, cos_distances]), axis=0)
+			return pd.Series(distances)
+
+
 		else:
-			distances = np.linalg.norm(embeddings - reference, axis=1)
+			if self.similarity == "cos":
+				distances = np.abs(np.dot(embeddings, reference)) / (np.linalg.norm(embeddings, axis=1) * np.linalg.norm(reference))
+			else:
+				distances = np.linalg.norm(embeddings - reference, axis=1)
 
-			distances = mstats.winsorize(distances, limits=[0, 0.1])
+				distances = mstats.winsorize(distances, limits=[0, 0.1])
 
-		scaler = MinMaxScaler()
-		distances = scaler.fit_transform([[d] for d in distances])
+			scaler = MinMaxScaler()
+			distances = scaler.fit_transform([[d] for d in distances])
 
-		if self.similarity != "cos":
-			distances = [1-d[0] for d in distances]
-		else:
-			distances = [d[0] for d in distances]
+			if self.similarity != "cos":
+				distances = [1-d[0] for d in distances]
+			else:
+				distances = [d[0] for d in distances]
 
-		return pd.Series(distances)
+			return pd.Series(distances)
 	
 	def calculate_impairment_index_formula(self, data):
 		data = data.copy()
